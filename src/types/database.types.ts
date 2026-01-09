@@ -1,7 +1,12 @@
 // CAT Cinema Automation Tool - Database Types
 // Auto-generated types for Supabase tables
 
-export type UserRole = 'super_admin' | 'admin' | 'editor' | 'viewer';
+// Role hierarchy:
+// - global_admin:   Full access to everything
+// - internal_admin: CRUD users, movies, sessions, reference tables (age_rating, genre, cinema_group, cinema, etc.)
+// - internal_user:  CRUD movies and sessions only
+// - external:       Create sessions manually for linked cinemas only
+export type UserRole = 'global_admin' | 'internal_admin' | 'internal_user' | 'external';
 export type MovieStatus = 'draft' | 'pending_review' | 'verified' | 'archived';
 export type ImportStatus = 'pending' | 'processing' | 'completed' | 'failed';
 export type ExportStatus = 'pending' | 'generating' | 'completed' | 'failed';
@@ -325,12 +330,14 @@ export interface Session {
   screen_name: string | null;
   show_date: string;
   show_time: string;
+  start_time: string; // Computed: show_date + show_time
   end_time: string | null;
   price: number | null;
   currency: string;
   booking_url: string | null;
   notes: string | null;
   is_cancelled: boolean;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
   // Relations
@@ -362,6 +369,10 @@ export interface UserCinemaPermission {
   cinema_id: string;
   can_edit: boolean;
   can_manage_sessions: boolean;
+  can_view_sessions: boolean;
+  can_create_sessions: boolean;
+  can_edit_sessions: boolean;
+  can_delete_sessions: boolean;
   created_at: string;
 }
 
@@ -370,6 +381,10 @@ export interface UserCinemaGroupPermission {
   cinema_group_id: string;
   can_edit: boolean;
   can_manage_sessions: boolean;
+  can_view_sessions: boolean;
+  can_create_sessions: boolean;
+  can_edit_sessions: boolean;
+  can_delete_sessions: boolean;
   created_at: string;
 }
 

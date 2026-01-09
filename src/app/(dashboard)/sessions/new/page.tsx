@@ -148,7 +148,17 @@ export default function NewSessionPage() {
         .eq('movie_l0_id', selectedMovie.id)
         .eq('is_active', true);
 
-      setEditions(data || []);
+      // Transform Supabase response - foreign key joins return single objects, not arrays
+      const transformedData: MovieEdition[] = (data || []).map((item: Record<string, unknown>) => ({
+        id: item.id as string,
+        edition_title: item.edition_title as string | null,
+        format: item.format as { name: string } | null,
+        technology: item.technology as { name: string } | null,
+        audio_language: item.audio_language as { code: string; name: string } | null,
+        subtitle_language: item.subtitle_language as { code: string; name: string } | null,
+      }));
+
+      setEditions(transformedData);
     }
 
     fetchEditions();

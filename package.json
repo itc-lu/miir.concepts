@@ -13,8 +13,14 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "db:migrate": "echo 'Run migrations via Supabase CLI'",
-    "db:seed": "echo 'Run seed via Supabase CLI'",
+    "db:push": "npx supabase db push",
+    "db:pull": "npx supabase db pull",
+    "db:reset": "npx supabase db reset",
+    "db:diff": "npx supabase db diff",
+    "db:migrate:new": "npx supabase migration new",
+    "db:migrate:list": "npx supabase migration list",
+    "db:migrate:up": "npx supabase migration up",
+    "db:types": "npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > src/types/supabase.ts",
     "format": "prettier --write ."
   },
   "dependencies": {

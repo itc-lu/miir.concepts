@@ -1,187 +1,373 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Film,
-  Building2,
-  Calendar,
-  FileInput,
-  FileOutput,
-  Globe,
-  ArrowRight,
-} from 'lucide-react';
+import { format, addDays, startOfToday, isSameDay } from 'date-fns';
+import { de, fr, enUS } from 'date-fns/locale';
+import { createClient } from '@/lib/supabase/client';
+import { cn } from '@/lib/utils';
+import { ChevronLeft, ChevronRight, MapPin, Clock, Globe } from 'lucide-react';
 
-const features = [
-  {
-    icon: FileInput,
-    title: 'Automated Data Import',
-    description:
-      'Import cinema data from multiple sources including Excel files, XML, and APIs automatically.',
-  },
-  {
-    icon: Film,
-    title: 'Movie Management',
-    description:
-      'Three-layer movie architecture (L0/L1/L2) for comprehensive metadata management.',
-  },
-  {
-    icon: Building2,
-    title: 'Cinema Network',
-    description: 'Manage multiple cinema groups and locations with individual configurations.',
-  },
-  {
-    icon: Calendar,
-    title: 'Session Scheduling',
-    description: 'Schedule and manage movie sessions with an intuitive wizard interface.',
-  },
-  {
-    icon: FileOutput,
-    title: 'Custom Exports',
-    description: 'Generate customized XML exports tailored to each client\'s requirements.',
-  },
-  {
-    icon: Globe,
-    title: 'Multi-Language Support',
-    description: 'Full support for Luxembourg\'s multilingual environment (LU, FR, DE, EN).',
-  },
-];
+interface Session {
+  id: string;
+  start_time: string;
+  movie_edition: {
+    id: string;
+    edition_title: string | null;
+    movie_localized: {
+      id: string;
+      title: string;
+      movie: {
+        id: string;
+        original_title: string;
+        runtime_minutes: number | null;
+        poster_url: string | null;
+      };
+    };
+    format: { name: string } | null;
+    technology: { name: string } | null;
+    audio_language: { code: string; name: string } | null;
+    subtitle_language: { code: string; name: string } | null;
+  };
+  cinema: {
+    id: string;
+    name: string;
+    city: string | null;
+    cinema_group: { name: string } | null;
+  };
+}
 
-export default function HomePage() {
+interface GroupedSessions {
+  [cinemaId: string]: {
+    cinema: Session['cinema'];
+    movies: {
+      [movieId: string]: {
+        movie: Session['movie_edition'];
+        sessions: Session[];
+      };
+    };
+  };
+}
+
+const locales = { de, fr, en: enUS };
+
+export default function CinemaProgramPage() {
+  const [selectedDate, setSelectedDate] = useState(startOfToday());
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [locale] = useState<'de' | 'fr' | 'en'>('de');
+
+  const supabase = createClient();
+
+  // Generate date range (today + 6 days)
+  const dateRange = Array.from({ length: 7 }, (_, i) => addDays(startOfToday(), i));
+
+  useEffect(() => {
+    async function fetchSessions() {
+      setLoading(true);
+
+      const startOfDay = new Date(selectedDate);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(selectedDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const { data, error } = await supabase
+        .from('sessions')
+        .select(`
+          id,
+          start_time,
+          movie_edition:movie_editions!inner(
+            id,
+            edition_title,
+            movie_localized:movies_localized!inner(
+              id,
+              title,
+              movie:movies!inner(
+                id,
+                original_title,
+                runtime_minutes,
+                poster_url
+              )
+            ),
+            format:formats(name),
+            technology:technologies(name),
+            audio_language:languages!movie_editions_audio_language_id_fkey(code, name),
+            subtitle_language:languages!movie_editions_subtitle_language_id_fkey(code, name)
+          ),
+          cinema:cinemas!inner(
+            id,
+            name,
+            city,
+            cinema_group:cinema_groups(name)
+          )
+        `)
+        .gte('start_time', startOfDay.toISOString())
+        .lte('start_time', endOfDay.toISOString())
+        .eq('is_active', true)
+        .order('start_time', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching sessions:', error);
+      } else {
+        setSessions((data || []) as unknown as Session[]);
+      }
+
+      setLoading(false);
+    }
+
+    fetchSessions();
+  }, [selectedDate, supabase]);
+
+  // Group sessions by cinema, then by movie
+  const groupedSessions: GroupedSessions = sessions.reduce((acc, session) => {
+    const cinemaId = session.cinema.id;
+    const movieId = session.movie_edition.movie_localized.movie.id;
+
+    if (!acc[cinemaId]) {
+      acc[cinemaId] = {
+        cinema: session.cinema,
+        movies: {},
+      };
+    }
+
+    if (!acc[cinemaId].movies[movieId]) {
+      acc[cinemaId].movies[movieId] = {
+        movie: session.movie_edition,
+        sessions: [],
+      };
+    }
+
+    acc[cinemaId].movies[movieId].sessions.push(session);
+    return acc;
+  }, {} as GroupedSessions);
+
+  const navigateDate = (direction: 'prev' | 'next') => {
+    const newDate = addDays(selectedDate, direction === 'next' ? 1 : -1);
+    if (newDate >= startOfToday()) {
+      setSelectedDate(newDate);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <Film className="h-8 w-8 text-primary" />
-            <span className="text-xl font-bold">CAT</span>
+    <div className="min-h-screen bg-background">
+      {/* Minimal Header */}
+      <header className="border-b">
+        <div className="max-w-6xl mx-auto px-4 py-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-medium tracking-tight">Kinoprogramm</h1>
+            <p className="text-sm text-muted-foreground">Luxembourg</p>
+          </div>
+          <Link
+            href="/login"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Login
           </Link>
-          <nav className="flex items-center gap-4">
-            <Link href="/login">
-              <Button variant="ghost">Sign In</Button>
-            </Link>
-            <Link href="/register">
-              <Button>Get Started</Button>
-            </Link>
-          </nav>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="container py-24 sm:py-32">
-        <div className="mx-auto max-w-3xl text-center">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-            Cinema Automation Tool
-          </h1>
-          <p className="mt-6 text-lg leading-8 text-muted-foreground">
-            Streamline your cinema program management with automated data collection, processing,
-            and distribution. Built for Luxembourg&apos;s media landscape.
-          </p>
-          <div className="mt-10 flex items-center justify-center gap-4">
-            <Link href="/register">
-              <Button size="lg">
-                Start Free Trial
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
-            <Link href="/login">
-              <Button variant="outline" size="lg">
-                Sign In
-              </Button>
-            </Link>
+      {/* Date Navigation */}
+      <nav className="border-b bg-secondary/30">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex items-center justify-between py-3">
+            <button
+              onClick={() => navigateDate('prev')}
+              disabled={isSameDay(selectedDate, startOfToday())}
+              className="p-2 hover:bg-secondary rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              aria-label="Previous day"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+
+            <div className="flex gap-1 overflow-x-auto">
+              {dateRange.map((date) => {
+                const isSelected = isSameDay(date, selectedDate);
+                const isToday = isSameDay(date, startOfToday());
+
+                return (
+                  <button
+                    key={date.toISOString()}
+                    onClick={() => setSelectedDate(date)}
+                    className={cn(
+                      'flex flex-col items-center px-4 py-2 rounded transition-colors min-w-[64px]',
+                      isSelected
+                        ? 'bg-primary text-primary-foreground'
+                        : 'hover:bg-secondary'
+                    )}
+                  >
+                    <span className="text-[10px] uppercase tracking-wider">
+                      {format(date, 'EEE', { locale: locales[locale] })}
+                    </span>
+                    <span className="text-lg font-medium tabular-nums">
+                      {format(date, 'd')}
+                    </span>
+                    {isToday && (
+                      <span className="text-[9px] uppercase tracking-wider opacity-70">
+                        Heute
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => navigateDate('next')}
+              className="p-2 hover:bg-secondary rounded transition-colors"
+              aria-label="Next day"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
         </div>
-      </section>
+      </nav>
 
-      {/* Features Section */}
-      <section className="container py-24 sm:py-32">
-        <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Everything you need to manage cinema programs
-          </h2>
-          <p className="mt-4 text-lg text-muted-foreground">
-            A comprehensive suite of tools designed for media companies and cinema operators.
-          </p>
-        </div>
-        <div className="mx-auto mt-16 grid max-w-5xl gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map(feature => (
-            <Card key={feature.title} className="relative overflow-hidden">
-              <CardHeader>
-                <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <feature.icon className="h-5 w-5 text-primary" />
+      {/* Selected Date Display */}
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        <h2 className="text-2xl font-medium">
+          {format(selectedDate, 'EEEE, d. MMMM yyyy', { locale: locales[locale] })}
+        </h2>
+      </div>
+
+      {/* Cinema Program */}
+      <main className="max-w-6xl mx-auto px-4 pb-16">
+        {loading ? (
+          <div className="space-y-8">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="animate-pulse">
+                <div className="h-6 bg-muted rounded w-48 mb-4" />
+                <div className="space-y-3">
+                  <div className="h-20 bg-muted rounded" />
+                  <div className="h-20 bg-muted rounded" />
                 </div>
-                <CardTitle className="text-lg">{feature.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CardDescription className="text-sm">{feature.description}</CardDescription>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      {/* Stats Section */}
-      <section className="border-y bg-muted/50">
-        <div className="container py-24 sm:py-32">
-          <div className="mx-auto grid max-w-5xl gap-8 sm:grid-cols-3">
-            <div className="text-center">
-              <div className="text-4xl font-bold text-primary">10+</div>
-              <div className="mt-2 text-sm text-muted-foreground">Cinema Parsers</div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-primary">4</div>
-              <div className="mt-2 text-sm text-muted-foreground">Languages Supported</div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-primary">100%</div>
-              <div className="mt-2 text-sm text-muted-foreground">Automation Ready</div>
-            </div>
+              </div>
+            ))}
           </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="container py-24 sm:py-32">
-        <div className="mx-auto max-w-2xl rounded-2xl bg-primary p-8 text-center sm:p-12">
-          <h2 className="text-2xl font-bold text-primary-foreground sm:text-3xl">
-            Ready to automate your cinema program?
-          </h2>
-          <p className="mt-4 text-primary-foreground/80">
-            Join media companies across Luxembourg who trust CAT for their cinema schedules.
-          </p>
-          <div className="mt-8">
-            <Link href="/register">
-              <Button size="lg" variant="secondary">
-                Get Started Today
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t">
-        <div className="container py-12">
-          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <div className="flex items-center gap-2">
-              <Film className="h-6 w-6 text-primary" />
-              <span className="font-semibold">CAT</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              &copy; {new Date().getFullYear()} miir.concepts. All rights reserved.
+        ) : Object.keys(groupedSessions).length === 0 ? (
+          <div className="text-center py-16">
+            <p className="text-muted-foreground">
+              Keine Vorstellungen für diesen Tag.
             </p>
-            <div className="flex gap-4 text-sm text-muted-foreground">
-              <Link href="/privacy" className="hover:text-foreground">
-                Privacy
-              </Link>
-              <Link href="/terms" className="hover:text-foreground">
-                Terms
-              </Link>
-              <Link href="/contact" className="hover:text-foreground">
-                Contact
-              </Link>
-            </div>
+          </div>
+        ) : (
+          <div className="space-y-12">
+            {Object.values(groupedSessions).map(({ cinema, movies }) => (
+              <section key={cinema.id} className="animate-fade-in">
+                {/* Cinema Header */}
+                <div className="flex items-baseline gap-3 mb-4 pb-2 border-b">
+                  <h3 className="text-lg font-medium">{cinema.name}</h3>
+                  {cinema.cinema_group && (
+                    <span className="text-xs text-muted-foreground">
+                      {cinema.cinema_group.name}
+                    </span>
+                  )}
+                  {cinema.city && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1 ml-auto">
+                      <MapPin className="h-3 w-3" />
+                      {cinema.city}
+                    </span>
+                  )}
+                </div>
+
+                {/* Movies */}
+                <div className="space-y-4">
+                  {Object.values(movies).map(({ movie, sessions: movieSessions }) => (
+                    <div
+                      key={movie.id}
+                      className="flex gap-4 p-4 bg-secondary/30 rounded hover:bg-secondary/50 transition-colors"
+                    >
+                      {/* Movie Poster Placeholder */}
+                      <div className="w-16 h-24 bg-muted rounded flex-shrink-0 overflow-hidden">
+                        {movie.movie_localized.movie.poster_url ? (
+                          <img
+                            src={movie.movie_localized.movie.poster_url}
+                            alt={movie.movie_localized.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                            No img
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Movie Info */}
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium truncate">
+                          {movie.movie_localized.title}
+                        </h4>
+
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
+                          {movie.movie_localized.movie.runtime_minutes && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {movie.movie_localized.movie.runtime_minutes} min
+                            </span>
+                          )}
+                          {movie.audio_language && (
+                            <span className="flex items-center gap-1">
+                              <Globe className="h-3 w-3" />
+                              {movie.audio_language.code.toUpperCase()}
+                              {movie.subtitle_language && (
+                                <span>/ UT: {movie.subtitle_language.code.toUpperCase()}</span>
+                              )}
+                            </span>
+                          )}
+                          {movie.format && movie.format.name !== 'Standard' && (
+                            <span className="px-1.5 py-0.5 bg-primary/10 rounded text-[10px] uppercase tracking-wider">
+                              {movie.format.name}
+                            </span>
+                          )}
+                          {movie.technology && movie.technology.name !== '2D' && (
+                            <span className="px-1.5 py-0.5 bg-primary/10 rounded text-[10px] uppercase tracking-wider">
+                              {movie.technology.name}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Session Times */}
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {movieSessions.map((session) => {
+                            const sessionTime = new Date(session.start_time);
+                            const isPast = sessionTime < new Date();
+
+                            return (
+                              <span
+                                key={session.id}
+                                className={cn(
+                                  'px-3 py-1.5 text-sm font-medium tabular-nums rounded border transition-colors',
+                                  isPast
+                                    ? 'text-muted-foreground border-transparent bg-muted/50'
+                                    : 'border-border hover:border-foreground hover:bg-secondary cursor-pointer'
+                                )}
+                              >
+                                {format(sessionTime, 'HH:mm')}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
+      </main>
+
+      {/* Minimal Footer */}
+      <footer className="border-t mt-auto">
+        <div className="max-w-6xl mx-auto px-4 py-6 flex items-center justify-between text-xs text-muted-foreground">
+          <span>&copy; {new Date().getFullYear()} miir.concepts</span>
+          <div className="flex gap-4">
+            <Link href="/impressum" className="hover:text-foreground transition-colors">
+              Impressum
+            </Link>
+            <Link href="/datenschutz" className="hover:text-foreground transition-colors">
+              Datenschutz
+            </Link>
           </div>
         </div>
       </footer>

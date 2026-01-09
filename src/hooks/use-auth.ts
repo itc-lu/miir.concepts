@@ -154,6 +154,13 @@ export function useAuth() {
     return data;
   }
 
+  // Role hierarchy helpers
+  const role = state.profile?.role;
+  const isGlobalAdmin = role === 'global_admin';
+  const isInternalAdminOrAbove = role === 'global_admin' || role === 'internal_admin';
+  const isInternalUserOrAbove = isInternalAdminOrAbove || role === 'internal_user';
+  const isExternal = role === 'external';
+
   return {
     user: state.user,
     profile: state.profile,
@@ -161,8 +168,18 @@ export function useAuth() {
     loading: state.loading,
     error: state.error,
     isAuthenticated: !!state.user,
-    isAdmin: state.profile?.role === 'admin' || state.profile?.role === 'super_admin',
-    isSuperAdmin: state.profile?.role === 'super_admin',
+    // Role hierarchy
+    isGlobalAdmin,
+    isInternalAdminOrAbove,
+    isInternalUserOrAbove,
+    isExternal,
+    // Permission helpers
+    canManageUsers: isInternalAdminOrAbove,
+    canManageMovies: isInternalUserOrAbove,
+    canManageSessions: isInternalUserOrAbove || isExternal, // External can only manage their linked cinemas
+    canManageReferenceTables: isInternalAdminOrAbove,
+    canManageCinemas: isInternalAdminOrAbove,
+    // Auth methods
     signIn,
     signUp,
     signOut,

@@ -1,371 +1,289 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { format, addDays, startOfToday, isSameDay } from 'date-fns';
-import { de, fr, enUS } from 'date-fns/locale';
-import { createClient } from '@/lib/supabase/client';
+import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, MapPin, Clock, Globe } from 'lucide-react';
 
-interface Session {
-  id: string;
-  start_time: string;
-  movie_edition: {
-    id: string;
-    edition_title: string | null;
-    movie_localized: {
-      id: string;
-      title: string;
-      movie: {
-        id: string;
-        original_title: string;
-        runtime_minutes: number | null;
-        poster_url: string | null;
-      };
-    };
-    format: { name: string } | null;
-    technology: { name: string } | null;
-    audio_language: { code: string; name: string } | null;
-    subtitle_language: { code: string; name: string } | null;
-  };
-  cinema: {
-    id: string;
-    name: string;
-    city: string | null;
-    cinema_group: { name: string } | null;
-  };
-}
-
-interface GroupedSessions {
-  [cinemaId: string]: {
-    cinema: Session['cinema'];
-    movies: {
-      [movieId: string]: {
-        movie: Session['movie_edition'];
-        sessions: Session[];
-      };
-    };
-  };
-}
-
-const locales = { de, fr, en: enUS };
+// Demo data - will be replaced with real data once database is set up
+const DEMO_CINEMAS = [
+  {
+    id: '1',
+    name: 'Kinepolis Kirchberg',
+    city: 'Luxembourg',
+    movies: [
+      {
+        id: '1',
+        title: 'Dune: Part Two',
+        runtime: 166,
+        language: 'EN',
+        subtitles: 'DE/FR',
+        format: 'IMAX',
+        poster: 'https://image.tmdb.org/t/p/w342/8b8R8l88Qje9dn9OE8PY05Nxl1X.jpg',
+        times: ['14:00', '17:30', '20:45'],
+      },
+      {
+        id: '2',
+        title: 'Poor Things',
+        runtime: 141,
+        language: 'EN',
+        subtitles: 'DE',
+        format: null,
+        poster: 'https://image.tmdb.org/t/p/w342/kCGlIMHnOm8JPXq3rXM6c5wMxcT.jpg',
+        times: ['16:15', '19:00', '21:30'],
+      },
+      {
+        id: '3',
+        title: 'Oppenheimer',
+        runtime: 180,
+        language: 'EN',
+        subtitles: 'FR',
+        format: null,
+        poster: 'https://image.tmdb.org/t/p/w342/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg',
+        times: ['19:30'],
+      },
+    ],
+  },
+  {
+    id: '2',
+    name: 'Ciné Utopia',
+    city: 'Luxembourg',
+    movies: [
+      {
+        id: '4',
+        title: 'Anatomie d\'une chute',
+        runtime: 150,
+        language: 'FR',
+        subtitles: 'DE',
+        format: null,
+        poster: 'https://image.tmdb.org/t/p/w342/kQs6keheMwCxJxrzV83VUwFtHkB.jpg',
+        times: ['18:00', '21:00'],
+      },
+      {
+        id: '5',
+        title: 'The Zone of Interest',
+        runtime: 105,
+        language: 'DE',
+        subtitles: 'EN',
+        format: null,
+        poster: 'https://image.tmdb.org/t/p/w342/hUu9zyZmDd8VZegKi1iK1Vk0RYS.jpg',
+        times: ['17:30', '20:15'],
+      },
+    ],
+  },
+  {
+    id: '3',
+    name: 'Kinepolis Belval',
+    city: 'Esch-sur-Alzette',
+    movies: [
+      {
+        id: '1',
+        title: 'Dune: Part Two',
+        runtime: 166,
+        language: 'EN',
+        subtitles: 'FR',
+        format: '3D',
+        poster: 'https://image.tmdb.org/t/p/w342/8b8R8l88Qje9dn9OE8PY05Nxl1X.jpg',
+        times: ['15:00', '18:30', '21:45'],
+      },
+      {
+        id: '6',
+        title: 'Wonka',
+        runtime: 116,
+        language: 'DE',
+        subtitles: null,
+        format: null,
+        poster: 'https://image.tmdb.org/t/p/w342/qhb1qOilapbapxWQn9jtRCMwXJF.jpg',
+        times: ['14:30', '17:00'],
+      },
+    ],
+  },
+];
 
 export default function CinemaProgramPage() {
   const [selectedDate, setSelectedDate] = useState(startOfToday());
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [locale] = useState<'de' | 'fr' | 'en'>('de');
 
-  const supabase = createClient();
-
-  // Generate date range (today + 6 days)
-  const dateRange = Array.from({ length: 7 }, (_, i) => addDays(startOfToday(), i));
-
-  useEffect(() => {
-    async function fetchSessions() {
-      setLoading(true);
-
-      const startOfDay = new Date(selectedDate);
-      startOfDay.setHours(0, 0, 0, 0);
-
-      const endOfDay = new Date(selectedDate);
-      endOfDay.setHours(23, 59, 59, 999);
-
-      const { data, error } = await supabase
-        .from('sessions')
-        .select(`
-          id,
-          start_time,
-          movie_edition:movie_editions!inner(
-            id,
-            edition_title,
-            movie_localized:movies_localized!inner(
-              id,
-              title,
-              movie:movies!inner(
-                id,
-                original_title,
-                runtime_minutes,
-                poster_url
-              )
-            ),
-            format:formats(name),
-            technology:technologies(name),
-            audio_language:languages!movie_editions_audio_language_id_fkey(code, name),
-            subtitle_language:languages!movie_editions_subtitle_language_id_fkey(code, name)
-          ),
-          cinema:cinemas!inner(
-            id,
-            name,
-            city,
-            cinema_group:cinema_groups(name)
-          )
-        `)
-        .gte('start_time', startOfDay.toISOString())
-        .lte('start_time', endOfDay.toISOString())
-        .eq('is_active', true)
-        .order('start_time', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching sessions:', error);
-      } else {
-        setSessions((data || []) as unknown as Session[]);
-      }
-
-      setLoading(false);
-    }
-
-    fetchSessions();
-  }, [selectedDate, supabase]);
-
-  // Group sessions by cinema, then by movie
-  const groupedSessions: GroupedSessions = sessions.reduce((acc, session) => {
-    const cinemaId = session.cinema.id;
-    const movieId = session.movie_edition.movie_localized.movie.id;
-
-    if (!acc[cinemaId]) {
-      acc[cinemaId] = {
-        cinema: session.cinema,
-        movies: {},
-      };
-    }
-
-    if (!acc[cinemaId].movies[movieId]) {
-      acc[cinemaId].movies[movieId] = {
-        movie: session.movie_edition,
-        sessions: [],
-      };
-    }
-
-    acc[cinemaId].movies[movieId].sessions.push(session);
-    return acc;
-  }, {} as GroupedSessions);
-
-  const navigateDate = (direction: 'prev' | 'next') => {
-    const newDate = addDays(selectedDate, direction === 'next' ? 1 : -1);
-    if (newDate >= startOfToday()) {
-      setSelectedDate(newDate);
-    }
-  };
+  const dateRange = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDays(startOfToday(), i)),
+    []
+  );
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Minimal Header */}
-      <header className="border-b">
-        <div className="max-w-6xl mx-auto px-4 py-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-medium tracking-tight">Kinoprogramm</h1>
-            <p className="text-sm text-muted-foreground">Luxembourg</p>
-          </div>
+    <div className="min-h-screen bg-white text-neutral-900">
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-neutral-200/50">
+        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+          <h1 className="text-base font-medium">Kinoprogramm Luxembourg</h1>
           <Link
             href="/login"
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="text-sm text-neutral-400 hover:text-neutral-900 transition-colors"
           >
             Login
           </Link>
         </div>
       </header>
 
-      {/* Date Navigation */}
-      <nav className="border-b bg-secondary/30">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="flex items-center justify-between py-3">
-            <button
-              onClick={() => navigateDate('prev')}
-              disabled={isSameDay(selectedDate, startOfToday())}
-              className="p-2 hover:bg-secondary rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              aria-label="Previous day"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
+      {/* Date Selector */}
+      <div className="fixed top-14 left-0 right-0 z-40 bg-white border-b border-neutral-200/50">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="flex gap-1 py-3 overflow-x-auto scrollbar-hide">
+            {dateRange.map((date) => {
+              const isSelected = isSameDay(date, selectedDate);
+              const isToday = isSameDay(date, startOfToday());
 
-            <div className="flex gap-1 overflow-x-auto">
-              {dateRange.map((date) => {
-                const isSelected = isSameDay(date, selectedDate);
-                const isToday = isSameDay(date, startOfToday());
-
-                return (
-                  <button
-                    key={date.toISOString()}
-                    onClick={() => setSelectedDate(date)}
-                    className={cn(
-                      'flex flex-col items-center px-4 py-2 rounded transition-colors min-w-[64px]',
-                      isSelected
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-secondary'
-                    )}
-                  >
-                    <span className="text-[10px] uppercase tracking-wider">
-                      {format(date, 'EEE', { locale: locales[locale] })}
-                    </span>
-                    <span className="text-lg font-medium tabular-nums">
-                      {format(date, 'd')}
-                    </span>
-                    {isToday && (
-                      <span className="text-[9px] uppercase tracking-wider opacity-70">
-                        Heute
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            <button
-              onClick={() => navigateDate('next')}
-              className="p-2 hover:bg-secondary rounded transition-colors"
-              aria-label="Next day"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+              return (
+                <button
+                  key={date.toISOString()}
+                  onClick={() => setSelectedDate(date)}
+                  className={cn(
+                    'flex flex-col items-center min-w-[68px] px-4 py-2.5 rounded-xl transition-all duration-200',
+                    isSelected
+                      ? 'bg-neutral-900 text-white'
+                      : 'hover:bg-neutral-100 text-neutral-600'
+                  )}
+                >
+                  <span className={cn(
+                    'text-[10px] font-medium uppercase tracking-widest',
+                    isSelected ? 'text-neutral-400' : 'text-neutral-400'
+                  )}>
+                    {isToday ? 'Heute' : format(date, 'EEE', { locale: de })}
+                  </span>
+                  <span className="text-lg font-semibold tabular-nums mt-0.5">
+                    {format(date, 'd')}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
-      </nav>
-
-      {/* Selected Date Display */}
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        <h2 className="text-2xl font-medium">
-          {format(selectedDate, 'EEEE, d. MMMM yyyy', { locale: locales[locale] })}
-        </h2>
       </div>
 
-      {/* Cinema Program */}
-      <main className="max-w-6xl mx-auto px-4 pb-16">
-        {loading ? (
-          <div className="space-y-8">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="animate-pulse">
-                <div className="h-6 bg-muted rounded w-48 mb-4" />
-                <div className="space-y-3">
-                  <div className="h-20 bg-muted rounded" />
-                  <div className="h-20 bg-muted rounded" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : Object.keys(groupedSessions).length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-muted-foreground">
-              Keine Vorstellungen für diesen Tag.
+      {/* Main Content */}
+      <main className="pt-32 pb-20">
+        <div className="max-w-6xl mx-auto px-6">
+          {/* Date Title */}
+          <div className="mb-12">
+            <h2 className="text-4xl font-semibold tracking-tight">
+              {format(selectedDate, 'EEEE', { locale: de })}
+            </h2>
+            <p className="text-lg text-neutral-400 mt-1">
+              {format(selectedDate, 'd. MMMM yyyy', { locale: de })}
             </p>
           </div>
-        ) : (
-          <div className="space-y-12">
-            {Object.values(groupedSessions).map(({ cinema, movies }) => (
-              <section key={cinema.id} className="animate-fade-in">
+
+          {/* Cinemas */}
+          <div className="space-y-20">
+            {DEMO_CINEMAS.map((cinema) => (
+              <section key={cinema.id}>
                 {/* Cinema Header */}
-                <div className="flex items-baseline gap-3 mb-4 pb-2 border-b">
-                  <h3 className="text-lg font-medium">{cinema.name}</h3>
-                  {cinema.cinema_group && (
-                    <span className="text-xs text-muted-foreground">
-                      {cinema.cinema_group.name}
-                    </span>
-                  )}
-                  {cinema.city && (
-                    <span className="text-xs text-muted-foreground flex items-center gap-1 ml-auto">
-                      <MapPin className="h-3 w-3" />
-                      {cinema.city}
-                    </span>
-                  )}
+                <div className="mb-8">
+                  <h3 className="text-xl font-semibold">{cinema.name}</h3>
+                  <p className="text-neutral-400 text-sm mt-1">{cinema.city}</p>
                 </div>
 
                 {/* Movies */}
-                <div className="space-y-4">
-                  {Object.values(movies).map(({ movie, sessions: movieSessions }) => (
-                    <div
-                      key={movie.id}
-                      className="flex gap-4 p-4 bg-secondary/30 rounded hover:bg-secondary/50 transition-colors"
+                <div className="space-y-6">
+                  {cinema.movies.map((movie) => (
+                    <article
+                      key={`${cinema.id}-${movie.id}`}
+                      className="group flex gap-6 p-5 -mx-5 rounded-2xl transition-colors hover:bg-neutral-50"
                     >
-                      {/* Movie Poster Placeholder */}
-                      <div className="w-16 h-24 bg-muted rounded flex-shrink-0 overflow-hidden">
-                        {movie.movie_localized.movie.poster_url ? (
+                      {/* Poster */}
+                      <div className="w-24 h-36 flex-shrink-0 rounded-xl overflow-hidden bg-neutral-100 shadow-lg shadow-neutral-200/50">
+                        {movie.poster ? (
                           <img
-                            src={movie.movie_localized.movie.poster_url}
-                            alt={movie.movie_localized.title}
+                            src={movie.poster}
+                            alt={movie.title}
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                            No img
+                          <div className="w-full h-full flex items-center justify-center">
+                            <svg className="w-8 h-8 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+                            </svg>
                           </div>
                         )}
                       </div>
 
-                      {/* Movie Info */}
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium truncate">
-                          {movie.movie_localized.title}
-                        </h4>
-
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
-                          {movie.movie_localized.movie.runtime_minutes && (
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {movie.movie_localized.movie.runtime_minutes} min
-                            </span>
-                          )}
-                          {movie.audio_language && (
-                            <span className="flex items-center gap-1">
-                              <Globe className="h-3 w-3" />
-                              {movie.audio_language.code.toUpperCase()}
-                              {movie.subtitle_language && (
-                                <span>/ UT: {movie.subtitle_language.code.toUpperCase()}</span>
-                              )}
-                            </span>
-                          )}
-                          {movie.format && movie.format.name !== 'Standard' && (
-                            <span className="px-1.5 py-0.5 bg-primary/10 rounded text-[10px] uppercase tracking-wider">
-                              {movie.format.name}
-                            </span>
-                          )}
-                          {movie.technology && movie.technology.name !== '2D' && (
-                            <span className="px-1.5 py-0.5 bg-primary/10 rounded text-[10px] uppercase tracking-wider">
-                              {movie.technology.name}
+                      {/* Info */}
+                      <div className="flex-1 min-w-0 py-1">
+                        <div className="flex items-start justify-between gap-4">
+                          <h4 className="text-lg font-semibold leading-snug">
+                            {movie.title}
+                          </h4>
+                          {movie.format && (
+                            <span className="flex-shrink-0 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-neutral-900 text-white rounded-md">
+                              {movie.format}
                             </span>
                           )}
                         </div>
 
-                        {/* Session Times */}
-                        <div className="flex flex-wrap gap-2 mt-3">
-                          {movieSessions.map((session) => {
-                            const sessionTime = new Date(session.start_time);
-                            const isPast = sessionTime < new Date();
+                        {/* Meta */}
+                        <div className="flex items-center gap-3 mt-2 text-sm text-neutral-500">
+                          <span className="tabular-nums">{movie.runtime} min</span>
+                          <span className="w-1 h-1 rounded-full bg-neutral-300" />
+                          <span>{movie.language}</span>
+                          {movie.subtitles && (
+                            <>
+                              <span className="w-1 h-1 rounded-full bg-neutral-300" />
+                              <span className="text-neutral-400">UT {movie.subtitles}</span>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Times */}
+                        <div className="flex flex-wrap gap-2 mt-5">
+                          {movie.times.map((time, idx) => {
+                            const [hours] = time.split(':').map(Number);
+                            const now = new Date();
+                            const isPast = isSameDay(selectedDate, startOfToday()) && hours < now.getHours();
 
                             return (
-                              <span
-                                key={session.id}
+                              <button
+                                key={idx}
+                                disabled={isPast}
                                 className={cn(
-                                  'px-3 py-1.5 text-sm font-medium tabular-nums rounded border transition-colors',
+                                  'min-w-[72px] px-4 py-2.5 text-sm font-semibold tabular-nums rounded-xl transition-all duration-200',
                                   isPast
-                                    ? 'text-muted-foreground border-transparent bg-muted/50'
-                                    : 'border-border hover:border-foreground hover:bg-secondary cursor-pointer'
+                                    ? 'bg-neutral-100 text-neutral-300 cursor-not-allowed'
+                                    : 'bg-neutral-100 text-neutral-900 hover:bg-neutral-900 hover:text-white hover:shadow-lg hover:shadow-neutral-900/20 hover:-translate-y-0.5'
                                 )}
                               >
-                                {format(sessionTime, 'HH:mm')}
-                              </span>
+                                {time}
+                              </button>
                             );
                           })}
                         </div>
                       </div>
-                    </div>
+                    </article>
                   ))}
                 </div>
               </section>
             ))}
           </div>
-        )}
+
+          {/* Demo Notice */}
+          <div className="mt-20 p-8 bg-neutral-50 rounded-2xl text-center">
+            <p className="text-neutral-500 text-sm">
+              Demo-Ansicht · Echte Daten werden geladen sobald die Datenbank eingerichtet ist
+            </p>
+          </div>
+        </div>
       </main>
 
-      {/* Minimal Footer */}
-      <footer className="border-t mt-auto">
-        <div className="max-w-6xl mx-auto px-4 py-6 flex items-center justify-between text-xs text-muted-foreground">
-          <span>&copy; {new Date().getFullYear()} miir.concepts</span>
-          <div className="flex gap-4">
-            <Link href="/impressum" className="hover:text-foreground transition-colors">
+      {/* Footer */}
+      <footer className="border-t border-neutral-100">
+        <div className="max-w-6xl mx-auto px-6 py-8 flex items-center justify-between">
+          <p className="text-sm text-neutral-400">
+            © {new Date().getFullYear()} miir.concepts
+          </p>
+          <div className="flex gap-6 text-sm text-neutral-400">
+            <Link href="/impressum" className="hover:text-neutral-900 transition-colors">
               Impressum
             </Link>
-            <Link href="/datenschutz" className="hover:text-foreground transition-colors">
+            <Link href="/datenschutz" className="hover:text-neutral-900 transition-colors">
               Datenschutz
             </Link>
           </div>

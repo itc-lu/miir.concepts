@@ -540,7 +540,7 @@ export interface SessionWithDetails extends Session {
   tags: SessionTag[];
 }
 
-export interface CinemaWithDetails extends Cinema {
+export interface CinemaWithDetails extends Omit<Cinema, 'cinema_group' | 'country' | 'tags'> {
   cinema_group: CinemaGroup | null;
   country: Country | null;
   tags: CinemaTag[];

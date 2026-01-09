@@ -43,9 +43,10 @@ function DropdownMenuTrigger({
   const handleClick = () => setOpen(!open);
 
   if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children as React.ReactElement<{ onClick?: () => void; className?: string }>, {
+    const childElement = children as React.ReactElement<{ onClick?: () => void; className?: string }>;
+    return React.cloneElement(childElement, {
       onClick: handleClick,
-      className: cn(children.props.className, className),
+      className: cn(childElement.props.className, className),
     });
   }
 

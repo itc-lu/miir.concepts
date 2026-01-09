@@ -52,3 +52,6 @@ supabase/.temp
 .vscode/
 *.swp
 *.swo
+
+# Claude Code
+.claude/settings.local.json

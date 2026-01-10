@@ -15,12 +15,42 @@ import {
   getTMDBPosterUrl,
   TMDBSearchResult,
 } from '@/lib/tmdb';
-import {
-  searchTitles as searchIMDB,
-  getFullIMDBData,
-  imdbRuntimeToMinutes,
-  IMDBSearchResult,
-} from '@/lib/imdb';
+// IMDB types and functions (use API routes to avoid CORS)
+interface IMDBSearchResult {
+  id: string;
+  title: string;
+  type: string;
+  year?: number;
+  poster?: { url: string };
+}
+
+async function searchIMDB(query: string, limit: number = 10): Promise<IMDBSearchResult[]> {
+  try {
+    const response = await fetch(`/api/imdb/search?query=${encodeURIComponent(query)}&limit=${limit}`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.results || [];
+  } catch (error) {
+    console.error('IMDB search error:', error);
+    return [];
+  }
+}
+
+async function getFullIMDBData(titleId: string) {
+  try {
+    const response = await fetch(`/api/imdb/title/${titleId}`);
+    if (!response.ok) return null;
+    return response.json();
+  } catch (error) {
+    console.error('IMDB fetch error:', error);
+    return null;
+  }
+}
+
+function imdbRuntimeToMinutes(runtimeSeconds?: number): number | null {
+  if (!runtimeSeconds) return null;
+  return Math.round(runtimeSeconds / 60);
+}
 
 type LookupSource = 'tmdb' | 'imdb';
 

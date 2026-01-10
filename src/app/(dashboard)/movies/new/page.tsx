@@ -11,7 +11,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, CheckCircle } from 'lucide-react';
+import { TMDBLookup, MovieLookupData } from '@/components/movies/tmdb-lookup';
 import { generateSlug } from '@/lib/utils';
 
 export default function NewMoviePage() {
@@ -20,6 +21,7 @@ export default function NewMoviePage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     original_title: '',
@@ -40,6 +42,22 @@ export default function NewMoviePage() {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
+
+  // Handle data import from TMDB/IMDB
+  function handleLookupImport(data: MovieLookupData) {
+    setFormData(prev => ({
+      ...prev,
+      original_title: prev.original_title || data.original_title,
+      production_year: prev.production_year || (data.production_year?.toString() || ''),
+      runtime_minutes: prev.runtime_minutes || (data.runtime_minutes?.toString() || ''),
+      poster_url: prev.poster_url || data.poster_url || '',
+      backdrop_url: prev.backdrop_url || data.backdrop_url || '',
+      trailer_url: prev.trailer_url || data.trailer_url || '',
+      imdb_id: prev.imdb_id || data.imdb_id || '',
+      tmdb_id: prev.tmdb_id || (data.tmdb_id?.toString() || ''),
+    }));
+    setSuccess('Data imported. Review and save to create the movie.');
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +90,8 @@ export default function NewMoviePage() {
         return;
       }
 
-      router.push(`/movies/${data.id}`);
+      // Redirect to the edit page so users can add more details (genres, cast, etc.)
+      router.push(`/movies/${data.id}/edit`);
     } catch (err) {
       setError('An unexpected error occurred');
     } finally {
@@ -82,16 +101,23 @@ export default function NewMoviePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/movies">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Add New Movie</h1>
-          <p className="text-muted-foreground">Create a new movie entry (L0 - Core Info)</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link href="/movies">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Add New Movie</h1>
+            <p className="text-muted-foreground">Create a new movie entry (L0 - Core Info)</p>
+          </div>
         </div>
+        <TMDBLookup
+          onSelect={handleLookupImport}
+          tmdbId={formData.tmdb_id ? parseInt(formData.tmdb_id) : null}
+          imdbId={formData.imdb_id || null}
+        />
       </div>
 
       {error && (
@@ -100,11 +126,18 @@ export default function NewMoviePage() {
         </Alert>
       )}
 
+      {success && (
+        <Alert>
+          <CheckCircle className="h-4 w-4" />
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Basic Information</CardTitle>
-            <CardDescription>Core movie details (L0 layer)</CardDescription>
+            <CardDescription>Core movie details (L0 layer). Use the Lookup button to import from IMDB/TMDB.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
@@ -169,30 +202,38 @@ export default function NewMoviePage() {
         <Card>
           <CardHeader>
             <CardTitle>Media</CardTitle>
-            <CardDescription>Poster, backdrop, and trailer URLs</CardDescription>
+            <CardDescription>Poster, backdrop, and trailer URLs (auto-populated from IMDB/TMDB)</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="poster_url">Poster URL</Label>
-              <Input
-                id="poster_url"
-                name="poster_url"
-                type="url"
-                value={formData.poster_url}
-                onChange={handleChange}
-                placeholder="https://example.com/poster.jpg"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="backdrop_url">Backdrop URL</Label>
-              <Input
-                id="backdrop_url"
-                name="backdrop_url"
-                type="url"
-                value={formData.backdrop_url}
-                onChange={handleChange}
-                placeholder="https://example.com/backdrop.jpg"
-              />
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="poster_url">Poster URL</Label>
+                <Input
+                  id="poster_url"
+                  name="poster_url"
+                  type="url"
+                  value={formData.poster_url}
+                  onChange={handleChange}
+                  placeholder="https://example.com/poster.jpg"
+                />
+                {formData.poster_url && (
+                  <img src={formData.poster_url} alt="Poster preview" className="h-32 w-auto rounded-lg object-cover mt-2" />
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="backdrop_url">Backdrop URL</Label>
+                <Input
+                  id="backdrop_url"
+                  name="backdrop_url"
+                  type="url"
+                  value={formData.backdrop_url}
+                  onChange={handleChange}
+                  placeholder="https://example.com/backdrop.jpg"
+                />
+                {formData.backdrop_url && (
+                  <img src={formData.backdrop_url} alt="Backdrop preview" className="h-24 w-full rounded-lg object-cover mt-2" />
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="trailer_url">Trailer URL</Label>

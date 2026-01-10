@@ -81,6 +81,7 @@ const navigation: NavItem[] = [
     icon: Settings,
     children: [
       { title: 'Users', href: '/admin/users', permission: 'users:read', globalAdminOnly: true },
+      { title: 'Roles', href: '/admin/roles', permission: 'users:read', globalAdminOnly: true },
       { title: 'Cinema Groups', href: '/admin/cinema-groups', permission: 'cinema_groups:read' },
       { title: 'Formats', href: '/admin/formats', permission: 'reference:read' },
       { title: 'Technologies', href: '/admin/technologies', permission: 'reference:read' },

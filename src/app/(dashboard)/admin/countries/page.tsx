@@ -43,7 +43,18 @@ export default function CountriesPage() {
     code: '',
     name: '',
     name_native: '',
+    week_start_day: 1, // Default Monday
   });
+
+  const weekDays = [
+    { value: 0, label: 'Sunday' },
+    { value: 1, label: 'Monday' },
+    { value: 2, label: 'Tuesday' },
+    { value: 3, label: 'Wednesday' },
+    { value: 4, label: 'Thursday' },
+    { value: 5, label: 'Friday' },
+    { value: 6, label: 'Saturday' },
+  ];
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [formLoading, setFormLoading] = useState(false);
@@ -73,6 +84,7 @@ export default function CountriesPage() {
         code: formData.code.toUpperCase(),
         name: formData.name,
         name_native: formData.name_native || null,
+        week_start_day: formData.week_start_day,
       });
 
       if (error) throw error;
@@ -103,6 +115,7 @@ export default function CountriesPage() {
         code: formData.code.toUpperCase(),
         name: formData.name,
         name_native: formData.name_native || null,
+        week_start_day: formData.week_start_day,
         updated_at: new Date().toISOString(),
       }).eq('id', selectedItem.id);
 
@@ -137,7 +150,7 @@ export default function CountriesPage() {
   }
 
   function resetForm() {
-    setFormData({ code: '', name: '', name_native: '' });
+    setFormData({ code: '', name: '', name_native: '', week_start_day: 1 });
   }
 
   function openEditDialog(item: Country) {
@@ -146,6 +159,7 @@ export default function CountriesPage() {
       code: item.code,
       name: item.name,
       name_native: item.name_native || '',
+      week_start_day: item.week_start_day ?? 1,
     });
     setFormError(null);
     setFormSuccess(null);
@@ -194,14 +208,15 @@ export default function CountriesPage() {
               <TableHead>Code</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Native Name</TableHead>
+              <TableHead>Week Start</TableHead>
               <TableHead className="w-[70px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={5} className="text-center py-8"><div className="text-slate-500">Loading...</div></TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="text-center py-8"><div className="text-slate-500">Loading...</div></TableCell></TableRow>
             ) : filteredItems.length === 0 ? (
-              <TableRow><TableCell colSpan={5} className="text-center py-8"><Globe className="h-8 w-8 text-slate-300 mx-auto mb-2" /><div className="text-slate-500">No countries found</div></TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="text-center py-8"><Globe className="h-8 w-8 text-slate-300 mx-auto mb-2" /><div className="text-slate-500">No countries found</div></TableCell></TableRow>
             ) : (
               filteredItems.map(item => (
                 <TableRow key={item.id}>
@@ -211,6 +226,7 @@ export default function CountriesPage() {
                   <TableCell><Badge variant="outline">{item.code}</Badge></TableCell>
                   <TableCell className="font-medium text-slate-900">{item.name}</TableCell>
                   <TableCell className="text-sm text-slate-500">{item.name_native || '-'}</TableCell>
+                  <TableCell className="text-sm text-slate-500">{weekDays.find(d => d.value === (item.week_start_day ?? 1))?.label || 'Monday'}</TableCell>
                   <TableCell>
                     {(canUpdate || canDelete) && (
                       <DropdownMenu>
@@ -260,6 +276,20 @@ export default function CountriesPage() {
                 <Label htmlFor="name_native">Native Name</Label>
                 <Input id="name_native" value={formData.name_native} onChange={(e) => setFormData({ ...formData, name_native: e.target.value })} placeholder="e.g., Lëtzebuerg" />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="week_start_day">Week Start Day</Label>
+                <select
+                  id="week_start_day"
+                  value={formData.week_start_day}
+                  onChange={(e) => setFormData({ ...formData, week_start_day: parseInt(e.target.value) })}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  {weekDays.map(day => (
+                    <option key={day.value} value={day.value}>{day.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-500">LU/BE/FR: Wednesday, DE: Thursday, Others: Monday</p>
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
@@ -297,6 +327,20 @@ export default function CountriesPage() {
               <div className="space-y-2">
                 <Label htmlFor="edit_name_native">Native Name</Label>
                 <Input id="edit_name_native" value={formData.name_native} onChange={(e) => setFormData({ ...formData, name_native: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_week_start_day">Week Start Day</Label>
+                <select
+                  id="edit_week_start_day"
+                  value={formData.week_start_day}
+                  onChange={(e) => setFormData({ ...formData, week_start_day: parseInt(e.target.value) })}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  {weekDays.map(day => (
+                    <option key={day.value} value={day.value}>{day.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-500">LU/BE/FR: Wednesday, DE: Thursday, Others: Monday</p>
               </div>
             </div>
             <DialogFooter>

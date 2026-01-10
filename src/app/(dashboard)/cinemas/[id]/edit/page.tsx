@@ -70,7 +70,32 @@ export default function EditCinemaPage() {
     screen_count: '1',
     is_active: true,
     parser_type: '',
+    timezone: 'Europe/Luxembourg',
+    week_start_day_override: '',
+    missing_info: '',
   });
+
+  const timezones = [
+    'Europe/Luxembourg',
+    'Europe/Brussels',
+    'Europe/Paris',
+    'Europe/Berlin',
+    'Europe/Amsterdam',
+    'Europe/London',
+    'Europe/Zurich',
+    'Europe/Vienna',
+  ];
+
+  const weekDays = [
+    { value: '', label: 'Inherit from country' },
+    { value: '0', label: 'Sunday' },
+    { value: '1', label: 'Monday' },
+    { value: '2', label: 'Tuesday' },
+    { value: '3', label: 'Wednesday' },
+    { value: '4', label: 'Thursday' },
+    { value: '5', label: 'Friday' },
+    { value: '6', label: 'Saturday' },
+  ];
 
   // Reference data
   const [cinemaGroups, setCinemaGroups] = useState<CinemaGroup[]>([]);
@@ -122,6 +147,9 @@ export default function EditCinemaPage() {
         screen_count: cinema.screen_count?.toString() || '1',
         is_active: cinema.is_active,
         parser_type: cinema.parser_type || '',
+        timezone: cinema.timezone || 'Europe/Luxembourg',
+        week_start_day_override: cinema.week_start_day_override?.toString() || '',
+        missing_info: cinema.missing_info || '',
       });
     }
 
@@ -183,6 +211,9 @@ export default function EditCinemaPage() {
           screen_count: parseInt(formData.screen_count) || 1,
           is_active: formData.is_active,
           parser_type: formData.parser_type || null,
+          timezone: formData.timezone || 'Europe/Luxembourg',
+          week_start_day_override: formData.week_start_day_override ? parseInt(formData.week_start_day_override) : null,
+          missing_info: formData.missing_info || null,
         })
         .eq('id', cinemaId);
 
@@ -429,6 +460,36 @@ export default function EditCinemaPage() {
                 />
               </div>
             </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="timezone">Timezone</Label>
+                <Select
+                  id="timezone"
+                  name="timezone"
+                  value={formData.timezone}
+                  onChange={handleChange}
+                >
+                  {timezones.map(tz => (
+                    <option key={tz} value={tz}>{tz}</option>
+                  ))}
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="week_start_day_override">Week Start Day Override</Label>
+                <Select
+                  id="week_start_day_override"
+                  name="week_start_day_override"
+                  value={formData.week_start_day_override}
+                  onChange={handleChange}
+                >
+                  {weekDays.map(day => (
+                    <option key={day.value} value={day.value}>{day.label}</option>
+                  ))}
+                </Select>
+                <p className="text-xs text-muted-foreground">Leave empty to use country default</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -529,7 +590,7 @@ export default function EditCinemaPage() {
             <CardTitle>Import Settings</CardTitle>
             <CardDescription>Parser configuration for automated imports</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="parser_type">Parser Type</Label>
               <Select
@@ -544,6 +605,17 @@ export default function EditCinemaPage() {
                 <option value="generic_xml">Generic XML</option>
                 <option value="generic_json">Generic JSON</option>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="missing_info">Missing Info / Notes</Label>
+              <textarea
+                id="missing_info"
+                name="missing_info"
+                value={formData.missing_info}
+                onChange={(e) => setFormData(prev => ({ ...prev, missing_info: e.target.value }))}
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder="Notes about missing data or special configurations..."
+              />
             </div>
           </CardContent>
         </Card>

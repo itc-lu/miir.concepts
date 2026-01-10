@@ -24,6 +24,24 @@ interface IMDBSearchResult {
   poster?: { url: string };
 }
 
+interface IMDBCredit {
+  name: {
+    id: string;
+    displayName: string;
+  };
+  category: string;
+  characters?: string[];
+}
+
+interface IMDBCompanyCredit {
+  company: {
+    id: string;
+    name: string;
+  };
+  category: string;
+  countries?: string[];
+}
+
 async function searchIMDB(query: string, limit: number = 10): Promise<IMDBSearchResult[]> {
   try {
     const response = await fetch(`/api/imdb/search?query=${encodeURIComponent(query)}&limit=${limit}`);
@@ -221,24 +239,24 @@ export function TMDBLookup({ onSelect, tmdbId, imdbId, disabled }: MovieLookupPr
           trailer_url: fullData.trailer?.playbackURLs?.[0]?.url || null,
           imdb_rating: fullData.title.rating?.aggregate || null,
           genres: fullData.title.genres || [],
-          production_companies: fullData.productionCompanies.map(c => ({
+          production_companies: fullData.productionCompanies.map((c: IMDBCompanyCredit) => ({
             name: c.company.name,
             country: c.countries?.[0] || '',
           })),
           production_countries: fullData.title.countriesOfOrigin || [],
-          directors: fullData.directors.map(d => ({
+          directors: fullData.directors.map((d: IMDBCredit) => ({
             id: d.name.id,
             name: d.name.displayName,
           })),
-          screenplay: fullData.writers.map(w => ({
+          screenplay: fullData.writers.map((w: IMDBCredit) => ({
             id: w.name.id,
             name: w.name.displayName,
           })),
-          music: fullData.composers.map(c => ({
+          music: fullData.composers.map((c: IMDBCredit) => ({
             id: c.name.id,
             name: c.name.displayName,
           })),
-          cast: fullData.cast.map(c => ({
+          cast: fullData.cast.map((c: IMDBCredit) => ({
             id: c.name.id,
             name: c.name.displayName,
             character: c.characters?.[0] || '',

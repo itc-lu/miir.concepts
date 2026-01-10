@@ -16,29 +16,29 @@ CREATE TABLE IF NOT EXISTS role_permissions (
 -- ============================================
 -- COUNTRIES
 -- ============================================
-INSERT INTO countries (id, code, name, flag_emoji, is_active) VALUES
-    (gen_random_uuid(), 'LU', 'Luxembourg', '🇱🇺', true),
-    (gen_random_uuid(), 'DE', 'Germany', '🇩🇪', true),
-    (gen_random_uuid(), 'FR', 'France', '🇫🇷', true),
-    (gen_random_uuid(), 'BE', 'Belgium', '🇧🇪', true),
-    (gen_random_uuid(), 'US', 'United States', '🇺🇸', true),
-    (gen_random_uuid(), 'GB', 'United Kingdom', '🇬🇧', true),
-    (gen_random_uuid(), 'IT', 'Italy', '🇮🇹', true),
-    (gen_random_uuid(), 'ES', 'Spain', '🇪🇸', true),
-    (gen_random_uuid(), 'JP', 'Japan', '🇯🇵', true),
-    (gen_random_uuid(), 'KR', 'South Korea', '🇰🇷', true),
-    (gen_random_uuid(), 'AU', 'Australia', '🇦🇺', true),
-    (gen_random_uuid(), 'CA', 'Canada', '🇨🇦', true),
-    (gen_random_uuid(), 'NL', 'Netherlands', '🇳🇱', true),
-    (gen_random_uuid(), 'AT', 'Austria', '🇦🇹', true),
-    (gen_random_uuid(), 'CH', 'Switzerland', '🇨🇭', true)
+INSERT INTO countries (id, code, name, name_native) VALUES
+    (gen_random_uuid(), 'LU', 'Luxembourg', 'Lëtzebuerg'),
+    (gen_random_uuid(), 'DE', 'Germany', 'Deutschland'),
+    (gen_random_uuid(), 'FR', 'France', 'France'),
+    (gen_random_uuid(), 'BE', 'Belgium', 'België/Belgique'),
+    (gen_random_uuid(), 'US', 'United States', 'United States'),
+    (gen_random_uuid(), 'GB', 'United Kingdom', 'United Kingdom'),
+    (gen_random_uuid(), 'IT', 'Italy', 'Italia'),
+    (gen_random_uuid(), 'ES', 'Spain', 'España'),
+    (gen_random_uuid(), 'JP', 'Japan', '日本'),
+    (gen_random_uuid(), 'KR', 'South Korea', '대한민국'),
+    (gen_random_uuid(), 'AU', 'Australia', 'Australia'),
+    (gen_random_uuid(), 'CA', 'Canada', 'Canada'),
+    (gen_random_uuid(), 'NL', 'Netherlands', 'Nederland'),
+    (gen_random_uuid(), 'AT', 'Austria', 'Österreich'),
+    (gen_random_uuid(), 'CH', 'Switzerland', 'Schweiz/Suisse')
 ON CONFLICT (code) DO NOTHING;
 
 -- ============================================
 -- LANGUAGES
 -- ============================================
 INSERT INTO languages (id, code, name, name_native, display_order, is_active) VALUES
-    (gen_random_uuid(), 'lu', 'Luxembourgish', 'Lëtzebuergesch', 1, true),
+    (gen_random_uuid(), 'lb', 'Luxembourgish', 'Lëtzebuergesch', 1, true),
     (gen_random_uuid(), 'de', 'German', 'Deutsch', 2, true),
     (gen_random_uuid(), 'fr', 'French', 'Français', 3, true),
     (gen_random_uuid(), 'en', 'English', 'English', 4, true),
@@ -57,61 +57,60 @@ ON CONFLICT (code) DO NOTHING;
 -- ============================================
 -- FORMATS
 -- ============================================
-INSERT INTO formats (id, name, code, description, display_order, is_active) VALUES
+INSERT INTO formats (id, code, name, description, display_order, is_active) VALUES
     (gen_random_uuid(), '2D', '2D', 'Standard 2D projection', 1, true),
     (gen_random_uuid(), '3D', '3D', '3D stereoscopic projection', 2, true),
-    (gen_random_uuid(), 'IMAX 2D', 'IMAX2D', 'IMAX large format 2D', 3, true),
-    (gen_random_uuid(), 'IMAX 3D', 'IMAX3D', 'IMAX large format 3D', 4, true),
+    (gen_random_uuid(), 'IMAX2D', 'IMAX 2D', 'IMAX large format 2D', 3, true),
+    (gen_random_uuid(), 'IMAX3D', 'IMAX 3D', 'IMAX large format 3D', 4, true),
     (gen_random_uuid(), '4DX', '4DX', '4D experience with motion seats', 5, true),
-    (gen_random_uuid(), 'ScreenX', 'SCREENX', 'Multi-projection immersive format', 6, true),
-    (gen_random_uuid(), 'Dolby Cinema', 'DOLBY', 'Dolby Vision & Atmos experience', 7, true),
-    (gen_random_uuid(), 'Premium', 'PREMIUM', 'Premium large format', 8, true)
+    (gen_random_uuid(), 'SCREENX', 'ScreenX', 'Multi-projection immersive format', 6, true),
+    (gen_random_uuid(), 'DOLBY', 'Dolby Cinema', 'Dolby Vision & Atmos experience', 7, true),
+    (gen_random_uuid(), 'PREMIUM', 'Premium', 'Premium large format', 8, true)
 ON CONFLICT (code) DO NOTHING;
 
 -- ============================================
 -- TECHNOLOGIES
 -- ============================================
-INSERT INTO technologies (id, name, code, description, display_order, is_active) VALUES
-    (gen_random_uuid(), 'Dolby Atmos', 'ATMOS', 'Object-based surround sound', 1, true),
-    (gen_random_uuid(), 'Dolby Vision', 'DVISION', 'HDR video technology', 2, true),
-    (gen_random_uuid(), 'IMAX Laser', 'IMAXLASER', 'IMAX laser projection', 3, true),
-    (gen_random_uuid(), 'RealD 3D', 'REALD', 'Circular polarized 3D', 4, true),
-    (gen_random_uuid(), 'Auro 11.1', 'AURO', '3D sound technology', 5, true),
-    (gen_random_uuid(), 'DTS:X', 'DTSX', 'Object-based audio codec', 6, true),
-    (gen_random_uuid(), '4K Laser', '4KLASER', '4K laser projection', 7, true),
+INSERT INTO technologies (id, code, name, description, display_order, is_active) VALUES
+    (gen_random_uuid(), 'ATMOS', 'Dolby Atmos', 'Object-based surround sound', 1, true),
+    (gen_random_uuid(), 'DVISION', 'Dolby Vision', 'HDR video technology', 2, true),
+    (gen_random_uuid(), 'IMAXLASER', 'IMAX Laser', 'IMAX laser projection', 3, true),
+    (gen_random_uuid(), 'REALD', 'RealD 3D', 'Circular polarized 3D', 4, true),
+    (gen_random_uuid(), 'AURO', 'Auro 11.1', '3D sound technology', 5, true),
+    (gen_random_uuid(), 'DTSX', 'DTS:X', 'Object-based audio codec', 6, true),
+    (gen_random_uuid(), '4KLASER', '4K Laser', '4K laser projection', 7, true),
     (gen_random_uuid(), 'HFR', 'HFR', 'High Frame Rate (48/60fps)', 8, true)
 ON CONFLICT (code) DO NOTHING;
 
 -- ============================================
 -- GENRES
 -- ============================================
-INSERT INTO genres (id, name, slug, description, display_order, is_active) VALUES
-    (gen_random_uuid(), 'Action', 'action', 'Action-packed films with physical feats', 1, true),
-    (gen_random_uuid(), 'Adventure', 'adventure', 'Exciting journeys and explorations', 2, true),
-    (gen_random_uuid(), 'Animation', 'animation', 'Animated feature films', 3, true),
-    (gen_random_uuid(), 'Comedy', 'comedy', 'Humorous and entertaining films', 4, true),
-    (gen_random_uuid(), 'Crime', 'crime', 'Crime and detective stories', 5, true),
-    (gen_random_uuid(), 'Documentary', 'documentary', 'Non-fiction films', 6, true),
-    (gen_random_uuid(), 'Drama', 'drama', 'Serious narrative films', 7, true),
-    (gen_random_uuid(), 'Family', 'family', 'Films suitable for all ages', 8, true),
-    (gen_random_uuid(), 'Fantasy', 'fantasy', 'Magical and fantastical stories', 9, true),
-    (gen_random_uuid(), 'Horror', 'horror', 'Scary and suspenseful films', 10, true),
-    (gen_random_uuid(), 'Musical', 'musical', 'Films featuring music and dance', 11, true),
-    (gen_random_uuid(), 'Mystery', 'mystery', 'Puzzling and enigmatic stories', 12, true),
-    (gen_random_uuid(), 'Romance', 'romance', 'Love stories and romantic tales', 13, true),
-    (gen_random_uuid(), 'Science Fiction', 'sci-fi', 'Futuristic and speculative fiction', 14, true),
-    (gen_random_uuid(), 'Thriller', 'thriller', 'Suspenseful and tense narratives', 15, true),
-    (gen_random_uuid(), 'War', 'war', 'War and military themed films', 16, true),
-    (gen_random_uuid(), 'Western', 'western', 'American Old West stories', 17, true),
-    (gen_random_uuid(), 'Biography', 'biography', 'Life stories of real people', 18, true),
-    (gen_random_uuid(), 'History', 'history', 'Historical period films', 19, true),
-    (gen_random_uuid(), 'Sport', 'sport', 'Sports-themed films', 20, true)
-ON CONFLICT (slug) DO NOTHING;
+INSERT INTO genres (id, code, name, display_order, is_active) VALUES
+    (gen_random_uuid(), 'action', 'Action', 1, true),
+    (gen_random_uuid(), 'adventure', 'Adventure', 2, true),
+    (gen_random_uuid(), 'animation', 'Animation', 3, true),
+    (gen_random_uuid(), 'comedy', 'Comedy', 4, true),
+    (gen_random_uuid(), 'crime', 'Crime', 5, true),
+    (gen_random_uuid(), 'documentary', 'Documentary', 6, true),
+    (gen_random_uuid(), 'drama', 'Drama', 7, true),
+    (gen_random_uuid(), 'family', 'Family', 8, true),
+    (gen_random_uuid(), 'fantasy', 'Fantasy', 9, true),
+    (gen_random_uuid(), 'horror', 'Horror', 10, true),
+    (gen_random_uuid(), 'musical', 'Musical', 11, true),
+    (gen_random_uuid(), 'mystery', 'Mystery', 12, true),
+    (gen_random_uuid(), 'romance', 'Romance', 13, true),
+    (gen_random_uuid(), 'sci-fi', 'Science Fiction', 14, true),
+    (gen_random_uuid(), 'thriller', 'Thriller', 15, true),
+    (gen_random_uuid(), 'war', 'War', 16, true),
+    (gen_random_uuid(), 'western', 'Western', 17, true),
+    (gen_random_uuid(), 'biography', 'Biography', 18, true),
+    (gen_random_uuid(), 'history', 'History', 19, true),
+    (gen_random_uuid(), 'sport', 'Sport', 20, true)
+ON CONFLICT (code) DO NOTHING;
 
 -- ============================================
 -- AGE RATINGS
 -- ============================================
--- Get country IDs first
 DO $$
 DECLARE
     lu_id UUID;
@@ -127,44 +126,52 @@ BEGIN
     SELECT id INTO us_id FROM countries WHERE code = 'US';
 
     -- Luxembourg Age Ratings
-    INSERT INTO age_ratings (id, country_id, code, name, min_age, description, color, display_order, is_active)
-    VALUES
-        (gen_random_uuid(), lu_id, 'TP', 'Tous Publics', 0, 'All audiences', '#22c55e', 1, true),
-        (gen_random_uuid(), lu_id, '6+', '6 ans et plus', 6, '6 years and older', '#84cc16', 2, true),
-        (gen_random_uuid(), lu_id, '12+', '12 ans et plus', 12, '12 years and older', '#f59e0b', 3, true),
-        (gen_random_uuid(), lu_id, '16+', '16 ans et plus', 16, '16 years and older', '#f97316', 4, true),
-        (gen_random_uuid(), lu_id, '18+', '18 ans et plus', 18, 'Adults only', '#ef4444', 5, true)
-    ON CONFLICT DO NOTHING;
+    IF lu_id IS NOT NULL THEN
+        INSERT INTO age_ratings (id, country_id, code, name, min_age, description, display_order, is_active)
+        VALUES
+            (gen_random_uuid(), lu_id, 'TP', 'Tous Publics', 0, 'All audiences', 1, true),
+            (gen_random_uuid(), lu_id, '6+', '6 ans et plus', 6, '6 years and older', 2, true),
+            (gen_random_uuid(), lu_id, '12+', '12 ans et plus', 12, '12 years and older', 3, true),
+            (gen_random_uuid(), lu_id, '16+', '16 ans et plus', 16, '16 years and older', 4, true),
+            (gen_random_uuid(), lu_id, '18+', '18 ans et plus', 18, 'Adults only', 5, true)
+        ON CONFLICT (country_id, code) DO NOTHING;
+    END IF;
 
     -- German Age Ratings (FSK)
-    INSERT INTO age_ratings (id, country_id, code, name, min_age, description, color, display_order, is_active)
-    VALUES
-        (gen_random_uuid(), de_id, 'FSK 0', 'FSK 0', 0, 'Freigegeben ohne Altersbeschränkung', '#22c55e', 1, true),
-        (gen_random_uuid(), de_id, 'FSK 6', 'FSK 6', 6, 'Freigegeben ab 6 Jahren', '#84cc16', 2, true),
-        (gen_random_uuid(), de_id, 'FSK 12', 'FSK 12', 12, 'Freigegeben ab 12 Jahren', '#f59e0b', 3, true),
-        (gen_random_uuid(), de_id, 'FSK 16', 'FSK 16', 16, 'Freigegeben ab 16 Jahren', '#f97316', 4, true),
-        (gen_random_uuid(), de_id, 'FSK 18', 'FSK 18', 18, 'Keine Jugendfreigabe', '#ef4444', 5, true)
-    ON CONFLICT DO NOTHING;
+    IF de_id IS NOT NULL THEN
+        INSERT INTO age_ratings (id, country_id, code, name, min_age, description, display_order, is_active)
+        VALUES
+            (gen_random_uuid(), de_id, 'FSK0', 'FSK 0', 0, 'Freigegeben ohne Altersbeschränkung', 1, true),
+            (gen_random_uuid(), de_id, 'FSK6', 'FSK 6', 6, 'Freigegeben ab 6 Jahren', 2, true),
+            (gen_random_uuid(), de_id, 'FSK12', 'FSK 12', 12, 'Freigegeben ab 12 Jahren', 3, true),
+            (gen_random_uuid(), de_id, 'FSK16', 'FSK 16', 16, 'Freigegeben ab 16 Jahren', 4, true),
+            (gen_random_uuid(), de_id, 'FSK18', 'FSK 18', 18, 'Keine Jugendfreigabe', 5, true)
+        ON CONFLICT (country_id, code) DO NOTHING;
+    END IF;
 
     -- French Age Ratings
-    INSERT INTO age_ratings (id, country_id, code, name, min_age, description, color, display_order, is_active)
-    VALUES
-        (gen_random_uuid(), fr_id, 'U', 'Tous publics', 0, 'All audiences', '#22c55e', 1, true),
-        (gen_random_uuid(), fr_id, '-10', 'Déconseillé -10', 10, 'Not recommended under 10', '#84cc16', 2, true),
-        (gen_random_uuid(), fr_id, '-12', 'Interdit -12', 12, 'Prohibited under 12', '#f59e0b', 3, true),
-        (gen_random_uuid(), fr_id, '-16', 'Interdit -16', 16, 'Prohibited under 16', '#f97316', 4, true),
-        (gen_random_uuid(), fr_id, '-18', 'Interdit -18', 18, 'Prohibited under 18', '#ef4444', 5, true)
-    ON CONFLICT DO NOTHING;
+    IF fr_id IS NOT NULL THEN
+        INSERT INTO age_ratings (id, country_id, code, name, min_age, description, display_order, is_active)
+        VALUES
+            (gen_random_uuid(), fr_id, 'U', 'Tous publics', 0, 'All audiences', 1, true),
+            (gen_random_uuid(), fr_id, '-10', 'Déconseillé -10', 10, 'Not recommended under 10', 2, true),
+            (gen_random_uuid(), fr_id, '-12', 'Interdit -12', 12, 'Prohibited under 12', 3, true),
+            (gen_random_uuid(), fr_id, '-16', 'Interdit -16', 16, 'Prohibited under 16', 4, true),
+            (gen_random_uuid(), fr_id, '-18', 'Interdit -18', 18, 'Prohibited under 18', 5, true)
+        ON CONFLICT (country_id, code) DO NOTHING;
+    END IF;
 
     -- US Age Ratings (MPAA)
-    INSERT INTO age_ratings (id, country_id, code, name, min_age, description, color, display_order, is_active)
-    VALUES
-        (gen_random_uuid(), us_id, 'G', 'General Audiences', 0, 'All ages admitted', '#22c55e', 1, true),
-        (gen_random_uuid(), us_id, 'PG', 'Parental Guidance', 0, 'Parental guidance suggested', '#84cc16', 2, true),
-        (gen_random_uuid(), us_id, 'PG-13', 'Parents Strongly Cautioned', 13, 'May be inappropriate for under 13', '#f59e0b', 3, true),
-        (gen_random_uuid(), us_id, 'R', 'Restricted', 17, 'Under 17 requires accompanying adult', '#f97316', 4, true),
-        (gen_random_uuid(), us_id, 'NC-17', 'Adults Only', 18, 'No one 17 and under admitted', '#ef4444', 5, true)
-    ON CONFLICT DO NOTHING;
+    IF us_id IS NOT NULL THEN
+        INSERT INTO age_ratings (id, country_id, code, name, min_age, description, display_order, is_active)
+        VALUES
+            (gen_random_uuid(), us_id, 'G', 'General Audiences', 0, 'All ages admitted', 1, true),
+            (gen_random_uuid(), us_id, 'PG', 'Parental Guidance', 0, 'Parental guidance suggested', 2, true),
+            (gen_random_uuid(), us_id, 'PG13', 'PG-13', 13, 'May be inappropriate for under 13', 3, true),
+            (gen_random_uuid(), us_id, 'R', 'Restricted', 17, 'Under 17 requires accompanying adult', 4, true),
+            (gen_random_uuid(), us_id, 'NC17', 'NC-17', 18, 'No one 17 and under admitted', 5, true)
+        ON CONFLICT (country_id, code) DO NOTHING;
+    END IF;
 END $$;
 
 -- ============================================
@@ -203,21 +210,19 @@ DECLARE
     utopia_id UUID;
     cine_belval_id UUID;
     lu_id UUID;
-    de_id UUID;
 BEGIN
     SELECT id INTO kinepolis_id FROM cinema_groups WHERE slug = 'kinepolis';
     SELECT id INTO utopia_id FROM cinema_groups WHERE slug = 'utopia';
     SELECT id INTO cine_belval_id FROM cinema_groups WHERE slug = 'cine-belval';
     SELECT id INTO lu_id FROM countries WHERE code = 'LU';
-    SELECT id INTO de_id FROM countries WHERE code = 'DE';
 
-    INSERT INTO cinemas (id, name, slug, cinema_group_id, country_id, city, address, postal_code, phone, email, website, screen_count, total_seats, is_active)
+    INSERT INTO cinemas (id, name, slug, cinema_group_id, country_id, city, address_line1, postal_code, phone, email, website, screen_count, is_active)
     VALUES
-        (gen_random_uuid(), 'Kinepolis Kirchberg', 'kinepolis-kirchberg', kinepolis_id, lu_id, 'Luxembourg', '45 Avenue John F. Kennedy', '1855', '+352 42 95 11', 'info@kinepolis.lu', 'https://kinepolis.lu', 10, 2400, true),
-        (gen_random_uuid(), 'Kinepolis Belval', 'kinepolis-belval', kinepolis_id, lu_id, 'Esch-sur-Alzette', '17 Avenue du Rock''n''Roll', '4361', '+352 42 95 11', 'belval@kinepolis.lu', 'https://kinepolis.lu/belval', 8, 1800, true),
-        (gen_random_uuid(), 'Utopia Luxembourg', 'utopia-luxembourg', utopia_id, lu_id, 'Luxembourg', '16 Avenue de la Faiencerie', '1510', '+352 22 46 11', 'info@utopolis.lu', 'https://utopolis.lu', 6, 1200, true),
-        (gen_random_uuid(), 'Ciné Utopia', 'cine-utopia', utopia_id, lu_id, 'Luxembourg', '16 Avenue de la Faiencerie', '1510', '+352 22 46 11', NULL, NULL, 2, 350, true),
-        (gen_random_uuid(), 'Ciné Belval', 'ciné-belval', cine_belval_id, lu_id, 'Esch-sur-Alzette', 'Place de l''Université', '4365', '+352 26 84 00', 'info@cinebelval.lu', NULL, 4, 650, true)
+        (gen_random_uuid(), 'Kinepolis Kirchberg', 'kinepolis-kirchberg', kinepolis_id, lu_id, 'Luxembourg', '45 Avenue John F. Kennedy', '1855', '+352 42 95 11', 'info@kinepolis.lu', 'https://kinepolis.lu', 10, true),
+        (gen_random_uuid(), 'Kinepolis Belval', 'kinepolis-belval', kinepolis_id, lu_id, 'Esch-sur-Alzette', '17 Avenue du Rock''n''Roll', '4361', '+352 42 95 11', 'belval@kinepolis.lu', 'https://kinepolis.lu/belval', 8, true),
+        (gen_random_uuid(), 'Utopia Luxembourg', 'utopia-luxembourg', utopia_id, lu_id, 'Luxembourg', '16 Avenue de la Faiencerie', '1510', '+352 22 46 11', 'info@utopolis.lu', 'https://utopolis.lu', 6, true),
+        (gen_random_uuid(), 'Ciné Utopia', 'cine-utopia', utopia_id, lu_id, 'Luxembourg', '16 Avenue de la Faiencerie', '1510', '+352 22 46 11', NULL, NULL, 2, true),
+        (gen_random_uuid(), 'Ciné Belval', 'cinema-belval', cine_belval_id, lu_id, 'Esch-sur-Alzette', 'Place de l''Université', '4365', '+352 26 84 00', 'info@cinebelval.lu', NULL, 4, true)
     ON CONFLICT (slug) DO NOTHING;
 END $$;
 
@@ -250,7 +255,7 @@ VALUES
     (gen_random_uuid(), 'Ryan Gosling', '#6366f1', 'Actor', true),
     (gen_random_uuid(), 'Cillian Murphy', '#0ea5e9', 'Actor', true),
     (gen_random_uuid(), 'Emily Blunt', '#d946ef', 'Actor', true)
-ON CONFLICT DO NOTHING;
+ON CONFLICT (name) DO NOTHING;
 
 -- ============================================
 -- SESSION TAGS
@@ -267,7 +272,7 @@ VALUES
     (gen_random_uuid(), 'Marathon', '#f97316', 'Movie marathon event', true),
     (gen_random_uuid(), 'Late Night', '#64748b', 'Late night screening', true),
     (gen_random_uuid(), 'Q&A', '#a855f7', 'Screening with Q&A session', true)
-ON CONFLICT DO NOTHING;
+ON CONFLICT (name) DO NOTHING;
 
 -- ============================================
 -- CINEMA TAGS
@@ -282,76 +287,35 @@ VALUES
     (gen_random_uuid(), 'Restaurant', '#ef4444', 'On-site restaurant', true),
     (gen_random_uuid(), 'Parking', '#6366f1', 'Free parking available', true),
     (gen_random_uuid(), 'Kids Area', '#ec4899', 'Kids play area', true)
-ON CONFLICT DO NOTHING;
+ON CONFLICT (name) DO NOTHING;
 
 -- ============================================
 -- MOVIES (L0 - Core Data)
 -- ============================================
-DO $$
-DECLARE
-    us_id UUID;
-    gb_id UUID;
-    action_id UUID;
-    adventure_id UUID;
-    scifi_id UUID;
-    drama_id UUID;
-    comedy_id UUID;
-    animation_id UUID;
-    thriller_id UUID;
+-- Helper function to generate slug
+CREATE OR REPLACE FUNCTION slugify(input TEXT)
+RETURNS TEXT AS $$
 BEGIN
-    SELECT id INTO us_id FROM countries WHERE code = 'US';
-    SELECT id INTO gb_id FROM countries WHERE code = 'GB';
-    SELECT id INTO action_id FROM genres WHERE slug = 'action';
-    SELECT id INTO adventure_id FROM genres WHERE slug = 'adventure';
-    SELECT id INTO scifi_id FROM genres WHERE slug = 'sci-fi';
-    SELECT id INTO drama_id FROM genres WHERE slug = 'drama';
-    SELECT id INTO comedy_id FROM genres WHERE slug = 'comedy';
-    SELECT id INTO animation_id FROM genres WHERE slug = 'animation';
-    SELECT id INTO thriller_id FROM genres WHERE slug = 'thriller';
+    RETURN lower(regexp_replace(regexp_replace(input, '[^a-zA-Z0-9\s-]', '', 'g'), '\s+', '-', 'g'));
+END;
+$$ LANGUAGE plpgsql;
 
-    -- Movie 1: Dune Part Two
-    INSERT INTO movies_l0 (id, original_title, production_year, imdb_id, tmdb_id, is_active)
-    VALUES (gen_random_uuid(), 'Dune: Part Two', 2024, 'tt15239678', 693134, true);
-
-    -- Movie 2: Oppenheimer
-    INSERT INTO movies_l0 (id, original_title, production_year, imdb_id, tmdb_id, is_active)
-    VALUES (gen_random_uuid(), 'Oppenheimer', 2023, 'tt15398776', 872585, true);
-
-    -- Movie 3: Barbie
-    INSERT INTO movies_l0 (id, original_title, production_year, imdb_id, tmdb_id, is_active)
-    VALUES (gen_random_uuid(), 'Barbie', 2023, 'tt1517268', 346698, true);
-
-    -- Movie 4: Inside Out 2
-    INSERT INTO movies_l0 (id, original_title, production_year, imdb_id, tmdb_id, is_active)
-    VALUES (gen_random_uuid(), 'Inside Out 2', 2024, 'tt22022452', 1022789, true);
-
-    -- Movie 5: Gladiator II
-    INSERT INTO movies_l0 (id, original_title, production_year, imdb_id, tmdb_id, is_active)
-    VALUES (gen_random_uuid(), 'Gladiator II', 2024, 'tt9218128', 558449, true);
-
-    -- Movie 6: Furiosa: A Mad Max Saga
-    INSERT INTO movies_l0 (id, original_title, production_year, imdb_id, tmdb_id, is_active)
-    VALUES (gen_random_uuid(), 'Furiosa: A Mad Max Saga', 2024, 'tt12037194', 786892, true);
-
-    -- Movie 7: Wonka
-    INSERT INTO movies_l0 (id, original_title, production_year, imdb_id, tmdb_id, is_active)
-    VALUES (gen_random_uuid(), 'Wonka', 2023, 'tt6166392', 787699, true);
-
-    -- Movie 8: The Fall Guy
-    INSERT INTO movies_l0 (id, original_title, production_year, imdb_id, tmdb_id, is_active)
-    VALUES (gen_random_uuid(), 'The Fall Guy', 2024, 'tt1684562', 746036, true);
-
-    -- Movie 9: Killers of the Flower Moon
-    INSERT INTO movies_l0 (id, original_title, production_year, imdb_id, tmdb_id, is_active)
-    VALUES (gen_random_uuid(), 'Killers of the Flower Moon', 2023, 'tt5537002', 466420, true);
-
-    -- Movie 10: Poor Things
-    INSERT INTO movies_l0 (id, original_title, production_year, imdb_id, tmdb_id, is_active)
-    VALUES (gen_random_uuid(), 'Poor Things', 2023, 'tt14230458', 792307, true);
-END $$;
+INSERT INTO movies_l0 (id, original_title, slug, production_year, runtime_minutes, imdb_id, tmdb_id)
+VALUES
+    (gen_random_uuid(), 'Dune: Part Two', 'dune-part-two', 2024, 166, 'tt15239678', 693134),
+    (gen_random_uuid(), 'Oppenheimer', 'oppenheimer', 2023, 180, 'tt15398776', 872585),
+    (gen_random_uuid(), 'Barbie', 'barbie', 2023, 114, 'tt1517268', 346698),
+    (gen_random_uuid(), 'Inside Out 2', 'inside-out-2', 2024, 96, 'tt22022452', 1022789),
+    (gen_random_uuid(), 'Gladiator II', 'gladiator-2', 2024, 148, 'tt9218128', 558449),
+    (gen_random_uuid(), 'Furiosa: A Mad Max Saga', 'furiosa', 2024, 148, 'tt12037194', 786892),
+    (gen_random_uuid(), 'Wonka', 'wonka', 2023, 116, 'tt6166392', 787699),
+    (gen_random_uuid(), 'The Fall Guy', 'the-fall-guy', 2024, 126, 'tt1684562', 746036),
+    (gen_random_uuid(), 'Killers of the Flower Moon', 'killers-of-the-flower-moon', 2023, 206, 'tt5537002', 466420),
+    (gen_random_uuid(), 'Poor Things', 'poor-things', 2023, 141, 'tt14230458', 792307)
+ON CONFLICT (slug) DO NOTHING;
 
 -- ============================================
--- MOVIES L1 - Localized Data (per market)
+-- MOVIES L1 - Localized Data (per language)
 -- ============================================
 DO $$
 DECLARE
@@ -360,97 +324,99 @@ DECLARE
     barbie_id UUID;
     inside_id UUID;
     gladiator_id UUID;
-    furiosa_id UUID;
-    wonka_id UUID;
-    fallguy_id UUID;
-    killers_id UUID;
-    poor_id UUID;
+
+    lang_en UUID;
+    lang_de UUID;
+    lang_fr UUID;
 
     lu_id UUID;
     de_id UUID;
     fr_id UUID;
-    be_id UUID;
 
-    lu_tp UUID;
     lu_12 UUID;
-    lu_16 UUID;
-    de_fsk0 UUID;
     de_fsk12 UUID;
-    de_fsk16 UUID;
-    fr_u UUID;
     fr_12 UUID;
+    lu_tp UUID;
+    de_fsk0 UUID;
+    fr_u UUID;
+    lu_16 UUID;
+    de_fsk16 UUID;
 BEGIN
     -- Get movie IDs
-    SELECT id INTO dune_id FROM movies_l0 WHERE original_title = 'Dune: Part Two';
-    SELECT id INTO oppen_id FROM movies_l0 WHERE original_title = 'Oppenheimer';
-    SELECT id INTO barbie_id FROM movies_l0 WHERE original_title = 'Barbie';
-    SELECT id INTO inside_id FROM movies_l0 WHERE original_title = 'Inside Out 2';
-    SELECT id INTO gladiator_id FROM movies_l0 WHERE original_title = 'Gladiator II';
-    SELECT id INTO furiosa_id FROM movies_l0 WHERE original_title = 'Furiosa: A Mad Max Saga';
-    SELECT id INTO wonka_id FROM movies_l0 WHERE original_title = 'Wonka';
-    SELECT id INTO fallguy_id FROM movies_l0 WHERE original_title = 'The Fall Guy';
-    SELECT id INTO killers_id FROM movies_l0 WHERE original_title = 'Killers of the Flower Moon';
-    SELECT id INTO poor_id FROM movies_l0 WHERE original_title = 'Poor Things';
+    SELECT id INTO dune_id FROM movies_l0 WHERE slug = 'dune-part-two';
+    SELECT id INTO oppen_id FROM movies_l0 WHERE slug = 'oppenheimer';
+    SELECT id INTO barbie_id FROM movies_l0 WHERE slug = 'barbie';
+    SELECT id INTO inside_id FROM movies_l0 WHERE slug = 'inside-out-2';
+    SELECT id INTO gladiator_id FROM movies_l0 WHERE slug = 'gladiator-2';
+
+    -- Get language IDs
+    SELECT id INTO lang_en FROM languages WHERE code = 'en';
+    SELECT id INTO lang_de FROM languages WHERE code = 'de';
+    SELECT id INTO lang_fr FROM languages WHERE code = 'fr';
 
     -- Get country IDs
     SELECT id INTO lu_id FROM countries WHERE code = 'LU';
     SELECT id INTO de_id FROM countries WHERE code = 'DE';
     SELECT id INTO fr_id FROM countries WHERE code = 'FR';
-    SELECT id INTO be_id FROM countries WHERE code = 'BE';
 
     -- Get age rating IDs
     SELECT id INTO lu_tp FROM age_ratings WHERE code = 'TP' AND country_id = lu_id;
     SELECT id INTO lu_12 FROM age_ratings WHERE code = '12+' AND country_id = lu_id;
     SELECT id INTO lu_16 FROM age_ratings WHERE code = '16+' AND country_id = lu_id;
-    SELECT id INTO de_fsk0 FROM age_ratings WHERE code = 'FSK 0' AND country_id = de_id;
-    SELECT id INTO de_fsk12 FROM age_ratings WHERE code = 'FSK 12' AND country_id = de_id;
-    SELECT id INTO de_fsk16 FROM age_ratings WHERE code = 'FSK 16' AND country_id = de_id;
+    SELECT id INTO de_fsk0 FROM age_ratings WHERE code = 'FSK0' AND country_id = de_id;
+    SELECT id INTO de_fsk12 FROM age_ratings WHERE code = 'FSK12' AND country_id = de_id;
+    SELECT id INTO de_fsk16 FROM age_ratings WHERE code = 'FSK16' AND country_id = de_id;
     SELECT id INTO fr_u FROM age_ratings WHERE code = 'U' AND country_id = fr_id;
     SELECT id INTO fr_12 FROM age_ratings WHERE code = '-12' AND country_id = fr_id;
 
-    -- Dune: Part Two - L1 data for each market
+    -- Dune: Part Two - L1 data per language
     IF dune_id IS NOT NULL THEN
-        INSERT INTO movies_l1 (id, movie_l0_id, country_id, local_title, release_date, runtime_minutes, age_rating_id, plot_summary, is_active)
+        INSERT INTO movies_l1 (id, movie_l0_id, language_id, title, release_date, runtime_minutes, age_rating_id, plot)
         VALUES
-            (gen_random_uuid(), dune_id, lu_id, 'Dune: Deuxième Partie', '2024-03-01', 166, lu_12, 'Paul Atréides s''unit avec Chani et les Fremen tout en étant sur un chemin de vengeance contre les conspirateurs qui ont détruit sa famille.', true),
-            (gen_random_uuid(), dune_id, de_id, 'Dune: Part Two', '2024-03-01', 166, de_fsk12, 'Paul Atreides verbündet sich mit Chani und den Fremen, während er einen Rachefeldzug gegen die Verschwörer plant.', true),
-            (gen_random_uuid(), dune_id, fr_id, 'Dune: Deuxième Partie', '2024-02-28', 166, fr_12, 'Paul Atréides s''unit avec Chani et les Fremen tout en cherchant à se venger de ceux qui ont détruit sa famille.', true);
+            (gen_random_uuid(), dune_id, lang_en, 'Dune: Part Two', '2024-03-01', 166, lu_12, 'Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family.'),
+            (gen_random_uuid(), dune_id, lang_de, 'Dune: Part Two', '2024-03-01', 166, de_fsk12, 'Paul Atreides verbündet sich mit Chani und den Fremen, während er Rache gegen die Verschwörer sucht, die seine Familie zerstört haben.'),
+            (gen_random_uuid(), dune_id, lang_fr, 'Dune: Deuxième Partie', '2024-02-28', 166, fr_12, 'Paul Atréides s''unit avec Chani et les Fremen tout en cherchant à se venger de ceux qui ont détruit sa famille.')
+        ON CONFLICT (movie_l0_id, language_id) DO NOTHING;
     END IF;
 
     -- Oppenheimer - L1 data
     IF oppen_id IS NOT NULL THEN
-        INSERT INTO movies_l1 (id, movie_l0_id, country_id, local_title, release_date, runtime_minutes, age_rating_id, plot_summary, is_active)
+        INSERT INTO movies_l1 (id, movie_l0_id, language_id, title, release_date, runtime_minutes, age_rating_id, plot)
         VALUES
-            (gen_random_uuid(), oppen_id, lu_id, 'Oppenheimer', '2023-07-21', 180, lu_12, 'L''histoire de J. Robert Oppenheimer et son rôle dans le développement de la bombe atomique.', true),
-            (gen_random_uuid(), oppen_id, de_id, 'Oppenheimer', '2023-07-20', 180, de_fsk12, 'Die Geschichte von J. Robert Oppenheimer und seine Rolle bei der Entwicklung der Atombombe.', true),
-            (gen_random_uuid(), oppen_id, fr_id, 'Oppenheimer', '2023-07-19', 180, fr_12, 'L''histoire du physicien américain J. Robert Oppenheimer, père de la bombe atomique.', true);
+            (gen_random_uuid(), oppen_id, lang_en, 'Oppenheimer', '2023-07-21', 180, lu_12, 'The story of J. Robert Oppenheimer and his role in the development of the atomic bomb.'),
+            (gen_random_uuid(), oppen_id, lang_de, 'Oppenheimer', '2023-07-20', 180, de_fsk12, 'Die Geschichte von J. Robert Oppenheimer und seine Rolle bei der Entwicklung der Atombombe.'),
+            (gen_random_uuid(), oppen_id, lang_fr, 'Oppenheimer', '2023-07-19', 180, fr_12, 'L''histoire du physicien américain J. Robert Oppenheimer, père de la bombe atomique.')
+        ON CONFLICT (movie_l0_id, language_id) DO NOTHING;
     END IF;
 
     -- Barbie - L1 data
     IF barbie_id IS NOT NULL THEN
-        INSERT INTO movies_l1 (id, movie_l0_id, country_id, local_title, release_date, runtime_minutes, age_rating_id, plot_summary, is_active)
+        INSERT INTO movies_l1 (id, movie_l0_id, language_id, title, release_date, runtime_minutes, age_rating_id, plot)
         VALUES
-            (gen_random_uuid(), barbie_id, lu_id, 'Barbie', '2023-07-21', 114, lu_tp, 'Barbie et Ken vivent dans le monde parfait de Barbie Land jusqu''à ce qu''ils aient l''occasion d''aller dans le monde réel.', true),
-            (gen_random_uuid(), barbie_id, de_id, 'Barbie', '2023-07-20', 114, de_fsk0, 'Barbie und Ken leben im perfekten Barbieland, bis sie die Gelegenheit bekommen, in die reale Welt zu gehen.', true),
-            (gen_random_uuid(), barbie_id, fr_id, 'Barbie', '2023-07-19', 114, fr_u, 'Barbie et Ken vivent dans le monde parfait de Barbie Land avant de découvrir le monde réel.', true);
+            (gen_random_uuid(), barbie_id, lang_en, 'Barbie', '2023-07-21', 114, lu_tp, 'Barbie and Ken are having the time of their lives in the colorful and seemingly perfect world of Barbie Land.'),
+            (gen_random_uuid(), barbie_id, lang_de, 'Barbie', '2023-07-20', 114, de_fsk0, 'Barbie und Ken leben im perfekten Barbieland, bis sie die Gelegenheit bekommen, in die reale Welt zu gehen.'),
+            (gen_random_uuid(), barbie_id, lang_fr, 'Barbie', '2023-07-19', 114, fr_u, 'Barbie et Ken vivent dans le monde parfait de Barbie Land avant de découvrir le monde réel.')
+        ON CONFLICT (movie_l0_id, language_id) DO NOTHING;
     END IF;
 
     -- Inside Out 2 - L1 data
     IF inside_id IS NOT NULL THEN
-        INSERT INTO movies_l1 (id, movie_l0_id, country_id, local_title, release_date, runtime_minutes, age_rating_id, plot_summary, is_active)
+        INSERT INTO movies_l1 (id, movie_l0_id, language_id, title, release_date, runtime_minutes, age_rating_id, plot)
         VALUES
-            (gen_random_uuid(), inside_id, lu_id, 'Vice-Versa 2', '2024-06-19', 96, lu_tp, 'Riley entre dans l''adolescence et de nouvelles émotions font leur apparition au quartier général.', true),
-            (gen_random_uuid(), inside_id, de_id, 'Alles steht Kopf 2', '2024-06-13', 96, de_fsk0, 'Riley wird Teenager und neue Emotionen tauchen in der Kommandozentrale auf.', true),
-            (gen_random_uuid(), inside_id, fr_id, 'Vice-Versa 2', '2024-06-19', 96, fr_u, 'Riley entre dans l''adolescence et de nouvelles émotions débarquent au Quartier général.', true);
+            (gen_random_uuid(), inside_id, lang_en, 'Inside Out 2', '2024-06-14', 96, lu_tp, 'Riley enters puberty and new emotions show up at headquarters.'),
+            (gen_random_uuid(), inside_id, lang_de, 'Alles steht Kopf 2', '2024-06-13', 96, de_fsk0, 'Riley wird Teenager und neue Emotionen tauchen in der Kommandozentrale auf.'),
+            (gen_random_uuid(), inside_id, lang_fr, 'Vice-Versa 2', '2024-06-19', 96, fr_u, 'Riley entre dans l''adolescence et de nouvelles émotions débarquent au Quartier général.')
+        ON CONFLICT (movie_l0_id, language_id) DO NOTHING;
     END IF;
 
     -- Gladiator II - L1 data
     IF gladiator_id IS NOT NULL THEN
-        INSERT INTO movies_l1 (id, movie_l0_id, country_id, local_title, release_date, runtime_minutes, age_rating_id, plot_summary, is_active)
+        INSERT INTO movies_l1 (id, movie_l0_id, language_id, title, release_date, runtime_minutes, age_rating_id, plot)
         VALUES
-            (gen_random_uuid(), gladiator_id, lu_id, 'Gladiator II', '2024-11-22', 148, lu_16, 'Lucius, le fils de Lucilla, doit entrer dans l''arène après que sa maison ait été conquise.', true),
-            (gen_random_uuid(), gladiator_id, de_id, 'Gladiator II', '2024-11-14', 148, de_fsk16, 'Lucius, der Sohn von Lucilla, muss in die Arena eintreten, nachdem sein Zuhause erobert wurde.', true),
-            (gen_random_uuid(), gladiator_id, fr_id, 'Gladiator II', '2024-11-13', 148, fr_12, 'Lucius, fils de Lucilla, doit entrer dans l''arène après la conquête de son foyer.', true);
+            (gen_random_uuid(), gladiator_id, lang_en, 'Gladiator II', '2024-11-22', 148, lu_16, 'Lucius, son of Lucilla, must enter the arena after his home is conquered.'),
+            (gen_random_uuid(), gladiator_id, lang_de, 'Gladiator II', '2024-11-14', 148, de_fsk16, 'Lucius, der Sohn von Lucilla, muss in die Arena eintreten, nachdem sein Zuhause erobert wurde.'),
+            (gen_random_uuid(), gladiator_id, lang_fr, 'Gladiator II', '2024-11-13', 148, fr_12, 'Lucius, fils de Lucilla, doit entrer dans l''arène après la conquête de son foyer.')
+        ON CONFLICT (movie_l0_id, language_id) DO NOTHING;
     END IF;
 END $$;
 
@@ -459,54 +425,25 @@ END $$;
 -- ============================================
 DO $$
 DECLARE
-    dune_l1_lu UUID;
-    dune_l1_de UUID;
-    oppen_l1_lu UUID;
-    barbie_l1_lu UUID;
-    inside_l1_lu UUID;
+    dune_id UUID;
+    barbie_id UUID;
+    inside_id UUID;
+    oppen_id UUID;
 
     format_2d UUID;
     format_3d UUID;
     format_imax UUID;
     format_dolby UUID;
 
-    tech_atmos UUID;
-    tech_dvision UUID;
-
     lang_en UUID;
     lang_de UUID;
     lang_fr UUID;
 BEGIN
-    -- Get L1 IDs
-    SELECT ml1.id INTO dune_l1_lu
-    FROM movies_l1 ml1
-    JOIN movies_l0 ml0 ON ml1.movie_l0_id = ml0.id
-    JOIN countries c ON ml1.country_id = c.id
-    WHERE ml0.original_title = 'Dune: Part Two' AND c.code = 'LU';
-
-    SELECT ml1.id INTO dune_l1_de
-    FROM movies_l1 ml1
-    JOIN movies_l0 ml0 ON ml1.movie_l0_id = ml0.id
-    JOIN countries c ON ml1.country_id = c.id
-    WHERE ml0.original_title = 'Dune: Part Two' AND c.code = 'DE';
-
-    SELECT ml1.id INTO oppen_l1_lu
-    FROM movies_l1 ml1
-    JOIN movies_l0 ml0 ON ml1.movie_l0_id = ml0.id
-    JOIN countries c ON ml1.country_id = c.id
-    WHERE ml0.original_title = 'Oppenheimer' AND c.code = 'LU';
-
-    SELECT ml1.id INTO barbie_l1_lu
-    FROM movies_l1 ml1
-    JOIN movies_l0 ml0 ON ml1.movie_l0_id = ml0.id
-    JOIN countries c ON ml1.country_id = c.id
-    WHERE ml0.original_title = 'Barbie' AND c.code = 'LU';
-
-    SELECT ml1.id INTO inside_l1_lu
-    FROM movies_l1 ml1
-    JOIN movies_l0 ml0 ON ml1.movie_l0_id = ml0.id
-    JOIN countries c ON ml1.country_id = c.id
-    WHERE ml0.original_title = 'Inside Out 2' AND c.code = 'LU';
+    -- Get movie L0 IDs
+    SELECT id INTO dune_id FROM movies_l0 WHERE slug = 'dune-part-two';
+    SELECT id INTO barbie_id FROM movies_l0 WHERE slug = 'barbie';
+    SELECT id INTO inside_id FROM movies_l0 WHERE slug = 'inside-out-2';
+    SELECT id INTO oppen_id FROM movies_l0 WHERE slug = 'oppenheimer';
 
     -- Get format IDs
     SELECT id INTO format_2d FROM formats WHERE code = '2D';
@@ -514,50 +451,47 @@ BEGIN
     SELECT id INTO format_imax FROM formats WHERE code = 'IMAX2D';
     SELECT id INTO format_dolby FROM formats WHERE code = 'DOLBY';
 
-    -- Get technology IDs
-    SELECT id INTO tech_atmos FROM technologies WHERE code = 'ATMOS';
-    SELECT id INTO tech_dvision FROM technologies WHERE code = 'DVISION';
-
     -- Get language IDs
     SELECT id INTO lang_en FROM languages WHERE code = 'en';
     SELECT id INTO lang_de FROM languages WHERE code = 'de';
     SELECT id INTO lang_fr FROM languages WHERE code = 'fr';
 
-    -- Dune editions for LU
-    IF dune_l1_lu IS NOT NULL AND format_2d IS NOT NULL THEN
-        INSERT INTO movies_l2 (id, movie_l1_id, edition_title, format_id, audio_language_id, subtitle_language_id, is_active)
+    -- Dune editions
+    IF dune_id IS NOT NULL AND format_2d IS NOT NULL THEN
+        INSERT INTO movies_l2 (id, movie_l0_id, edition_title, format_id, audio_language_id, subtitle_language_id, is_original_version, is_active)
         VALUES
-            (gen_random_uuid(), dune_l1_lu, 'Dune 2 - OV', format_2d, lang_en, lang_fr, true),
-            (gen_random_uuid(), dune_l1_lu, 'Dune 2 - VF', format_2d, lang_fr, NULL, true),
-            (gen_random_uuid(), dune_l1_lu, 'Dune 2 - IMAX OV', format_imax, lang_en, lang_fr, true),
-            (gen_random_uuid(), dune_l1_lu, 'Dune 2 - Dolby Cinema', format_dolby, lang_en, lang_fr, true);
+            (gen_random_uuid(), dune_id, 'Dune 2 - OV', format_2d, lang_en, lang_fr, true, true),
+            (gen_random_uuid(), dune_id, 'Dune 2 - VF', format_2d, lang_fr, NULL, false, true),
+            (gen_random_uuid(), dune_id, 'Dune 2 - DF', format_2d, lang_de, NULL, false, true),
+            (gen_random_uuid(), dune_id, 'Dune 2 - IMAX OV', format_imax, lang_en, lang_fr, true, true),
+            (gen_random_uuid(), dune_id, 'Dune 2 - Dolby Cinema', format_dolby, lang_en, lang_fr, true, true);
     END IF;
 
-    -- Oppenheimer editions for LU
-    IF oppen_l1_lu IS NOT NULL AND format_2d IS NOT NULL THEN
-        INSERT INTO movies_l2 (id, movie_l1_id, edition_title, format_id, audio_language_id, subtitle_language_id, is_active)
+    -- Oppenheimer editions
+    IF oppen_id IS NOT NULL AND format_2d IS NOT NULL THEN
+        INSERT INTO movies_l2 (id, movie_l0_id, edition_title, format_id, audio_language_id, subtitle_language_id, is_original_version, is_active)
         VALUES
-            (gen_random_uuid(), oppen_l1_lu, 'Oppenheimer - OV', format_2d, lang_en, lang_fr, true),
-            (gen_random_uuid(), oppen_l1_lu, 'Oppenheimer - VF', format_2d, lang_fr, NULL, true),
-            (gen_random_uuid(), oppen_l1_lu, 'Oppenheimer - IMAX', format_imax, lang_en, lang_fr, true);
+            (gen_random_uuid(), oppen_id, 'Oppenheimer - OV', format_2d, lang_en, lang_fr, true, true),
+            (gen_random_uuid(), oppen_id, 'Oppenheimer - VF', format_2d, lang_fr, NULL, false, true),
+            (gen_random_uuid(), oppen_id, 'Oppenheimer - IMAX', format_imax, lang_en, lang_fr, true, true);
     END IF;
 
-    -- Barbie editions for LU
-    IF barbie_l1_lu IS NOT NULL AND format_2d IS NOT NULL THEN
-        INSERT INTO movies_l2 (id, movie_l1_id, edition_title, format_id, audio_language_id, subtitle_language_id, is_active)
+    -- Barbie editions
+    IF barbie_id IS NOT NULL AND format_2d IS NOT NULL THEN
+        INSERT INTO movies_l2 (id, movie_l0_id, edition_title, format_id, audio_language_id, subtitle_language_id, is_original_version, is_active)
         VALUES
-            (gen_random_uuid(), barbie_l1_lu, 'Barbie - OV', format_2d, lang_en, lang_fr, true),
-            (gen_random_uuid(), barbie_l1_lu, 'Barbie - VF', format_2d, lang_fr, NULL, true),
-            (gen_random_uuid(), barbie_l1_lu, 'Barbie - DF', format_2d, lang_de, NULL, true);
+            (gen_random_uuid(), barbie_id, 'Barbie - OV', format_2d, lang_en, lang_fr, true, true),
+            (gen_random_uuid(), barbie_id, 'Barbie - VF', format_2d, lang_fr, NULL, false, true),
+            (gen_random_uuid(), barbie_id, 'Barbie - DF', format_2d, lang_de, NULL, false, true);
     END IF;
 
-    -- Inside Out 2 editions for LU
-    IF inside_l1_lu IS NOT NULL AND format_2d IS NOT NULL THEN
-        INSERT INTO movies_l2 (id, movie_l1_id, edition_title, format_id, audio_language_id, subtitle_language_id, is_active)
+    -- Inside Out 2 editions
+    IF inside_id IS NOT NULL AND format_2d IS NOT NULL THEN
+        INSERT INTO movies_l2 (id, movie_l0_id, edition_title, format_id, audio_language_id, subtitle_language_id, is_original_version, is_active)
         VALUES
-            (gen_random_uuid(), inside_l1_lu, 'Vice-Versa 2 - VF', format_2d, lang_fr, NULL, true),
-            (gen_random_uuid(), inside_l1_lu, 'Vice-Versa 2 - DF', format_2d, lang_de, NULL, true),
-            (gen_random_uuid(), inside_l1_lu, 'Inside Out 2 - 3D VF', format_3d, lang_fr, NULL, true);
+            (gen_random_uuid(), inside_id, 'Vice-Versa 2 - VF', format_2d, lang_fr, NULL, false, true),
+            (gen_random_uuid(), inside_id, 'Alles steht Kopf 2 - DF', format_2d, lang_de, NULL, false, true),
+            (gen_random_uuid(), inside_id, 'Inside Out 2 - 3D VF', format_3d, lang_fr, NULL, false, true);
     END IF;
 END $$;
 
@@ -588,13 +522,15 @@ BEGIN
         INSERT INTO export_templates (id, client_id, name, description, format, template_content, config, is_active)
         VALUES
             (gen_random_uuid(), rtl_id, 'RTL Daily Feed', 'Daily cinema program for RTL website', 'xml', '<cinemas>{{#cinemas}}<cinema name="{{name}}">{{#sessions}}<session>...</session>{{/sessions}}</cinema>{{/cinemas}}</cinemas>', '{"include_synopsis": true}', true),
-            (gen_random_uuid(), rtl_id, 'RTL Weekly PDF', 'Weekly cinema overview', 'json', '{"week": "{{week}}", "cinemas": [...]}', '{"format": "pdf"}', true);
+            (gen_random_uuid(), rtl_id, 'RTL Weekly PDF', 'Weekly cinema overview', 'json', '{"week": "{{week}}", "cinemas": [...]}', '{"format": "pdf"}', true)
+        ON CONFLICT DO NOTHING;
     END IF;
 
     IF wort_id IS NOT NULL THEN
         INSERT INTO export_templates (id, client_id, name, description, format, template_content, config, is_active)
         VALUES
-            (gen_random_uuid(), wort_id, 'Wort Cinema Feed', 'Cinema listings for Wort', 'xml', '<programme>...</programme>', '{}', true);
+            (gen_random_uuid(), wort_id, 'Wort Cinema Feed', 'Cinema listings for Wort', 'xml', '<programme>...</programme>', '{}', true)
+        ON CONFLICT DO NOTHING;
     END IF;
 END $$;
 
@@ -604,7 +540,6 @@ END $$;
 DO $$
 DECLARE
     kinepolis_kb_id UUID;
-    kinepolis_bv_id UUID;
     utopia_id UUID;
 
     dune_ed_ov UUID;
@@ -615,11 +550,9 @@ DECLARE
 
     today DATE := CURRENT_DATE;
     tomorrow DATE := CURRENT_DATE + 1;
-    day_after DATE := CURRENT_DATE + 2;
 BEGIN
     -- Get cinema IDs
     SELECT id INTO kinepolis_kb_id FROM cinemas WHERE slug = 'kinepolis-kirchberg';
-    SELECT id INTO kinepolis_bv_id FROM cinemas WHERE slug = 'kinepolis-belval';
     SELECT id INTO utopia_id FROM cinemas WHERE slug = 'utopia-luxembourg';
 
     -- Get edition IDs
@@ -631,38 +564,45 @@ BEGIN
 
     -- Create sessions for Kinepolis Kirchberg
     IF kinepolis_kb_id IS NOT NULL AND dune_ed_ov IS NOT NULL THEN
-        INSERT INTO sessions (id, cinema_id, movie_edition_id, screen_name, start_time, end_time, ticket_price, booking_url, is_active)
+        INSERT INTO sessions (id, movie_l2_id, cinema_id, screen_name, show_date, show_time, end_time, price, booking_url)
         VALUES
-            (gen_random_uuid(), kinepolis_kb_id, dune_ed_ov, 'Saal 1', (today + TIME '14:00')::TIMESTAMP, (today + TIME '16:46')::TIMESTAMP, 14.50, 'https://kinepolis.lu/tickets', true),
-            (gen_random_uuid(), kinepolis_kb_id, dune_ed_ov, 'Saal 1', (today + TIME '17:30')::TIMESTAMP, (today + TIME '20:16')::TIMESTAMP, 14.50, 'https://kinepolis.lu/tickets', true),
-            (gen_random_uuid(), kinepolis_kb_id, dune_ed_ov, 'Saal 1', (today + TIME '20:45')::TIMESTAMP, (today + TIME '23:31')::TIMESTAMP, 14.50, 'https://kinepolis.lu/tickets', true),
-            (gen_random_uuid(), kinepolis_kb_id, dune_ed_vf, 'Saal 3', (today + TIME '15:00')::TIMESTAMP, (today + TIME '17:46')::TIMESTAMP, 14.50, 'https://kinepolis.lu/tickets', true),
-            (gen_random_uuid(), kinepolis_kb_id, dune_ed_vf, 'Saal 3', (today + TIME '20:00')::TIMESTAMP, (today + TIME '22:46')::TIMESTAMP, 14.50, 'https://kinepolis.lu/tickets', true);
+            (gen_random_uuid(), dune_ed_ov, kinepolis_kb_id, 'Saal 1', today, '14:00', '16:46', 14.50, 'https://kinepolis.lu/tickets'),
+            (gen_random_uuid(), dune_ed_ov, kinepolis_kb_id, 'Saal 1', today, '17:30', '20:16', 14.50, 'https://kinepolis.lu/tickets'),
+            (gen_random_uuid(), dune_ed_ov, kinepolis_kb_id, 'Saal 1', today, '20:45', '23:31', 14.50, 'https://kinepolis.lu/tickets'),
+            (gen_random_uuid(), dune_ed_ov, kinepolis_kb_id, 'Saal 1', tomorrow, '14:00', '16:46', 14.50, 'https://kinepolis.lu/tickets'),
+            (gen_random_uuid(), dune_ed_ov, kinepolis_kb_id, 'Saal 1', tomorrow, '20:00', '22:46', 14.50, 'https://kinepolis.lu/tickets');
+    END IF;
+
+    IF kinepolis_kb_id IS NOT NULL AND dune_ed_vf IS NOT NULL THEN
+        INSERT INTO sessions (id, movie_l2_id, cinema_id, screen_name, show_date, show_time, end_time, price, booking_url)
+        VALUES
+            (gen_random_uuid(), dune_ed_vf, kinepolis_kb_id, 'Saal 3', today, '15:00', '17:46', 14.50, 'https://kinepolis.lu/tickets'),
+            (gen_random_uuid(), dune_ed_vf, kinepolis_kb_id, 'Saal 3', today, '20:00', '22:46', 14.50, 'https://kinepolis.lu/tickets');
     END IF;
 
     IF kinepolis_kb_id IS NOT NULL AND dune_ed_imax IS NOT NULL THEN
-        INSERT INTO sessions (id, cinema_id, movie_edition_id, screen_name, start_time, end_time, ticket_price, booking_url, is_active)
+        INSERT INTO sessions (id, movie_l2_id, cinema_id, screen_name, show_date, show_time, end_time, price, booking_url)
         VALUES
-            (gen_random_uuid(), kinepolis_kb_id, dune_ed_imax, 'IMAX', (today + TIME '16:00')::TIMESTAMP, (today + TIME '18:46')::TIMESTAMP, 18.50, 'https://kinepolis.lu/tickets', true),
-            (gen_random_uuid(), kinepolis_kb_id, dune_ed_imax, 'IMAX', (today + TIME '21:00')::TIMESTAMP, (today + TIME '23:46')::TIMESTAMP, 18.50, 'https://kinepolis.lu/tickets', true),
-            (gen_random_uuid(), kinepolis_kb_id, dune_ed_imax, 'IMAX', (tomorrow + TIME '14:00')::TIMESTAMP, (tomorrow + TIME '16:46')::TIMESTAMP, 18.50, 'https://kinepolis.lu/tickets', true),
-            (gen_random_uuid(), kinepolis_kb_id, dune_ed_imax, 'IMAX', (tomorrow + TIME '20:00')::TIMESTAMP, (tomorrow + TIME '22:46')::TIMESTAMP, 18.50, 'https://kinepolis.lu/tickets', true);
+            (gen_random_uuid(), dune_ed_imax, kinepolis_kb_id, 'IMAX', today, '16:00', '18:46', 18.50, 'https://kinepolis.lu/tickets'),
+            (gen_random_uuid(), dune_ed_imax, kinepolis_kb_id, 'IMAX', today, '21:00', '23:46', 18.50, 'https://kinepolis.lu/tickets'),
+            (gen_random_uuid(), dune_ed_imax, kinepolis_kb_id, 'IMAX', tomorrow, '14:00', '16:46', 18.50, 'https://kinepolis.lu/tickets'),
+            (gen_random_uuid(), dune_ed_imax, kinepolis_kb_id, 'IMAX', tomorrow, '20:00', '22:46', 18.50, 'https://kinepolis.lu/tickets');
     END IF;
 
     -- Create sessions for Utopia
     IF utopia_id IS NOT NULL AND barbie_ed_ov IS NOT NULL THEN
-        INSERT INTO sessions (id, cinema_id, movie_edition_id, screen_name, start_time, end_time, ticket_price, booking_url, is_active)
+        INSERT INTO sessions (id, movie_l2_id, cinema_id, screen_name, show_date, show_time, end_time, price, booking_url)
         VALUES
-            (gen_random_uuid(), utopia_id, barbie_ed_ov, 'Saal A', (today + TIME '14:30')::TIMESTAMP, (today + TIME '16:24')::TIMESTAMP, 12.00, 'https://utopolis.lu/tickets', true),
-            (gen_random_uuid(), utopia_id, barbie_ed_ov, 'Saal A', (today + TIME '19:00')::TIMESTAMP, (today + TIME '20:54')::TIMESTAMP, 12.00, 'https://utopolis.lu/tickets', true);
+            (gen_random_uuid(), barbie_ed_ov, utopia_id, 'Saal A', today, '14:30', '16:24', 12.00, 'https://utopolis.lu/tickets'),
+            (gen_random_uuid(), barbie_ed_ov, utopia_id, 'Saal A', today, '19:00', '20:54', 12.00, 'https://utopolis.lu/tickets');
     END IF;
 
     IF utopia_id IS NOT NULL AND inside_ed_vf IS NOT NULL THEN
-        INSERT INTO sessions (id, cinema_id, movie_edition_id, screen_name, start_time, end_time, ticket_price, booking_url, is_active)
+        INSERT INTO sessions (id, movie_l2_id, cinema_id, screen_name, show_date, show_time, end_time, price, booking_url)
         VALUES
-            (gen_random_uuid(), utopia_id, inside_ed_vf, 'Saal B', (today + TIME '11:00')::TIMESTAMP, (today + TIME '12:36')::TIMESTAMP, 10.00, 'https://utopolis.lu/tickets', true),
-            (gen_random_uuid(), utopia_id, inside_ed_vf, 'Saal B', (today + TIME '14:00')::TIMESTAMP, (today + TIME '15:36')::TIMESTAMP, 12.00, 'https://utopolis.lu/tickets', true),
-            (gen_random_uuid(), utopia_id, inside_ed_vf, 'Saal B', (today + TIME '16:30')::TIMESTAMP, (today + TIME '18:06')::TIMESTAMP, 12.00, 'https://utopolis.lu/tickets', true);
+            (gen_random_uuid(), inside_ed_vf, utopia_id, 'Saal B', today, '11:00', '12:36', 10.00, 'https://utopolis.lu/tickets'),
+            (gen_random_uuid(), inside_ed_vf, utopia_id, 'Saal B', today, '14:00', '15:36', 12.00, 'https://utopolis.lu/tickets'),
+            (gen_random_uuid(), inside_ed_vf, utopia_id, 'Saal B', today, '16:30', '18:06', 12.00, 'https://utopolis.lu/tickets');
     END IF;
 END $$;
 
@@ -671,7 +611,9 @@ END $$;
 -- ============================================
 DO $$
 BEGIN
+    RAISE NOTICE '============================================';
     RAISE NOTICE 'Demo data successfully inserted!';
+    RAISE NOTICE '============================================';
     RAISE NOTICE 'Countries: %', (SELECT COUNT(*) FROM countries);
     RAISE NOTICE 'Languages: %', (SELECT COUNT(*) FROM languages);
     RAISE NOTICE 'Formats: %', (SELECT COUNT(*) FROM formats);
@@ -685,4 +627,5 @@ BEGIN
     RAISE NOTICE 'Movies (L2): %', (SELECT COUNT(*) FROM movies_l2);
     RAISE NOTICE 'Sessions: %', (SELECT COUNT(*) FROM sessions);
     RAISE NOTICE 'Export Clients: %', (SELECT COUNT(*) FROM export_clients);
+    RAISE NOTICE '============================================';
 END $$;

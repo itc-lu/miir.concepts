@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Calendar, Film, Building2, Clock, X } from 'lucide-react';
+import { Plus, Calendar, Film, Building2, Clock, X, Eye, Pencil } from 'lucide-react';
 import { formatDate, formatTime } from '@/lib/utils';
 
 interface SearchParams {
@@ -163,12 +163,13 @@ export default async function SessionsPage({
                 <TableHead>Format</TableHead>
                 <TableHead>Tags</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="w-24">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sessions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     No sessions found
                   </TableCell>
                 </TableRow>
@@ -254,6 +255,20 @@ export default async function SessionsPage({
                       ) : (
                         <Badge variant="success">Scheduled</Badge>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Link href={`/sessions/${session.id}`}>
+                          <Button variant="ghost" size="icon">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                        <Link href={`/sessions/${session.id}/edit`}>
+                          <Button variant="ghost" size="icon">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   Clapperboard,
   Send,
+  Zap,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -91,6 +92,7 @@ const navigation: NavItem[] = [
       { title: 'Age Ratings', href: '/admin/age-ratings', permission: 'reference:read' },
       { title: 'Tags', href: '/admin/tags', permission: 'reference:read' },
       { title: 'Countries', href: '/admin/countries', permission: 'countries:read' },
+      { title: 'Flag Automation', href: '/admin/flag-automation', permission: 'sessions:update' },
       { title: 'Export Clients', href: '/admin/export-clients', permission: 'export_clients:read' },
     ],
   },

@@ -305,6 +305,27 @@ export default function CinemaDetailPage() {
         </Card>
       </div>
 
+      {/* Screenings Management */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Screenings</CardTitle>
+            <CardDescription>Weekly movie screenings and schedules</CardDescription>
+          </div>
+          <Link href={`/cinemas/${cinemaId}/screenings`}>
+            <Button variant="default" size="sm">
+              <Calendar className="h-4 w-4 mr-2" />
+              Manage Screenings
+            </Button>
+          </Link>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Manage weekly screenings, session days, and showing times for this cinema.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Upcoming Sessions */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

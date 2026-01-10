@@ -3,6 +3,11 @@ const nextConfig = {
   // React strict mode
   reactStrictMode: true,
 
+  // Enable system TLS certificates for Turbopack (fixes Google Fonts fetch)
+  experimental: {
+    turbopackUseSystemTlsCerts: true,
+  },
+
   // Image optimization
   images: {
     remotePatterns: [

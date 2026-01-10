@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazy initialization to avoid build-time errors
+let supabase: SupabaseClient | null = null;
+
+function getSupabase() {
+  if (!supabase) {
+    supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+  }
+  return supabase;
+}
 
 // Convert decimal time to HH:MM format
 function formatTimeFloat(timeFloat: number): string {
@@ -95,8 +103,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const db = getSupabase();
+
     // Fetch template
-    const { data: template, error: templateError } = await supabase
+    const { data: template, error: templateError } = await db
       .from('export_templates')
       .select('*, client:export_clients(id, name, slug)')
       .eq('id', templateId)
@@ -110,7 +120,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build screenings query
-    let query = supabase
+    let query = db
       .from('screenings')
       .select(`
         id,
@@ -151,7 +161,7 @@ export async function GET(request: NextRequest) {
       query = query.eq('cinema_id', cinemaId);
     } else if (cinemaGroupId) {
       // Get cinemas in group first
-      const { data: groupCinemas } = await supabase
+      const { data: groupCinemas } = await db
         .from('cinemas')
         .select('id')
         .eq('cinema_group_id', cinemaGroupId);

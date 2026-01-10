@@ -1,21 +1,24 @@
 'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { ChevronRight, Check } from 'lucide-react';
 
 interface DropdownContextType {
   open: boolean;
   setOpen: (open: boolean) => void;
+  triggerRef: React.RefObject<HTMLElement | null>;
 }
 
 const DropdownContext = React.createContext<DropdownContextType | undefined>(undefined);
 
 function DropdownMenu({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false);
+  const triggerRef = React.useRef<HTMLElement | null>(null);
 
   return (
-    <DropdownContext.Provider value={{ open, setOpen }}>
+    <DropdownContext.Provider value={{ open, setOpen, triggerRef }}>
       <div className="relative inline-block text-left">{children}</div>
     </DropdownContext.Provider>
   );
@@ -38,20 +41,40 @@ function DropdownMenuTrigger({
   asChild?: boolean;
   className?: string;
 }) {
-  const { open, setOpen } = useDropdown();
+  const { open, setOpen, triggerRef } = useDropdown();
+  const localRef = React.useRef<HTMLButtonElement>(null);
 
   const handleClick = () => setOpen(!open);
 
+  React.useEffect(() => {
+    triggerRef.current = localRef.current;
+  }, [triggerRef]);
+
   if (asChild && React.isValidElement(children)) {
-    const childElement = children as React.ReactElement<{ onClick?: () => void; className?: string }>;
+    const childElement = children as React.ReactElement<{
+      onClick?: () => void;
+      className?: string;
+      ref?: React.Ref<HTMLElement>;
+    }>;
     return React.cloneElement(childElement, {
       onClick: handleClick,
       className: cn(childElement.props.className, className),
+      ref: (el: HTMLElement) => {
+        triggerRef.current = el;
+        if (typeof childElement.props.ref === 'function') {
+          childElement.props.ref(el);
+        }
+      },
     });
   }
 
   return (
-    <button type="button" onClick={handleClick} className={className}>
+    <button
+      ref={localRef}
+      type="button"
+      onClick={handleClick}
+      className={className}
+    >
       {children}
     </button>
   );
@@ -61,34 +84,101 @@ function DropdownMenuContent({
   children,
   className,
   align = 'start',
+  sideOffset = 4,
   ...props
-}: React.HTMLAttributes<HTMLDivElement> & { align?: 'start' | 'end' | 'center' }) {
-  const { open, setOpen } = useDropdown();
+}: React.HTMLAttributes<HTMLDivElement> & {
+  align?: 'start' | 'end' | 'center';
+  sideOffset?: number;
+}) {
+  const { open, setOpen, triggerRef } = useDropdown();
   const ref = React.useRef<HTMLDivElement>(null);
+  const [position, setPosition] = React.useState({ top: 0, left: 0 });
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  React.useEffect(() => {
+    function updatePosition() {
+      if (triggerRef.current && open) {
+        const rect = triggerRef.current.getBoundingClientRect();
+        const menuWidth = 192; // min-w-[12rem] = 192px
+
+        let left = rect.left;
+        if (align === 'end') {
+          left = rect.right - menuWidth;
+        } else if (align === 'center') {
+          left = rect.left + (rect.width / 2) - (menuWidth / 2);
+        }
+
+        // Ensure menu doesn't go off-screen
+        const rightEdge = left + menuWidth;
+        if (rightEdge > window.innerWidth) {
+          left = window.innerWidth - menuWidth - 8;
+        }
+        if (left < 8) {
+          left = 8;
+        }
+
+        setPosition({
+          top: rect.bottom + sideOffset,
+          left,
+        });
+      }
+    }
+
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [open, align, sideOffset, triggerRef]);
 
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
+      if (
+        ref.current &&
+        !ref.current.contains(event.target as Node) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
         setOpen(false);
       }
     }
 
     if (open) {
       document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEscape);
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [open, setOpen]);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [open, setOpen, triggerRef]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  const content = (
     <div
       ref={ref}
+      style={{
+        position: 'fixed',
+        top: position.top,
+        left: position.left,
+        zIndex: 9999,
+      }}
       className={cn(
-        'absolute z-50 mt-2 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
-        align === 'end' && 'right-0',
-        align === 'center' && 'left-1/2 -translate-x-1/2',
-        align === 'start' && 'left-0',
+        'min-w-[12rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95',
         className
       )}
       {...props}
@@ -96,6 +186,8 @@ function DropdownMenuContent({
       {children}
     </div>
   );
+
+  return createPortal(content, document.body);
 }
 
 function DropdownMenuItem({
@@ -214,7 +306,7 @@ function DropdownMenuSubContent({
   return (
     <div
       className={cn(
-        'absolute left-full top-0 z-50 ml-1 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg',
+        'absolute left-full top-0 z-[9999] ml-1 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg',
         className
       )}
       {...props}

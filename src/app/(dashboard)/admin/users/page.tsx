@@ -614,10 +614,11 @@ export default function UsersPage() {
                   <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
-                    type="email"
+                    type="text"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
+                    placeholder="user@example.com"
                   />
                 </div>
                 <div className="space-y-2">

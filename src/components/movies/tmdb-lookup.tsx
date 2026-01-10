@@ -25,20 +25,26 @@ interface IMDBSearchResult {
 }
 
 interface IMDBCredit {
-  name: {
+  name?: {
     id: string;
     displayName: string;
   };
-  category: string;
+  // Alternative direct properties
+  id?: string;
+  displayName?: string;
+  category?: string;
   characters?: string[];
 }
 
 interface IMDBCompanyCredit {
-  company: {
+  company?: {
     id: string;
     name: string;
   };
-  category: string;
+  // Alternative direct properties
+  id?: string;
+  name?: string;
+  category?: string;
   countries?: string[];
 }
 
@@ -134,6 +140,7 @@ export function TMDBLookup({ onSelect, tmdbId, imdbId, disabled }: MovieLookupPr
   const [imdbResults, setImdbResults] = useState<IMDBSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMovie, setLoadingMovie] = useState<string | number | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -142,17 +149,30 @@ export function TMDBLookup({ onSelect, tmdbId, imdbId, disabled }: MovieLookupPr
     if (!search || search.length < 2) {
       setTmdbResults([]);
       setImdbResults([]);
+      setError(null);
       return;
     }
 
     const timer = setTimeout(async () => {
       setLoading(true);
-      if (source === 'tmdb') {
-        const data = await searchTMDB(search);
-        setTmdbResults(data.results.slice(0, 8));
-      } else {
-        const data = await searchIMDB(search, 8);
-        setImdbResults(data);
+      setError(null);
+      try {
+        if (source === 'tmdb') {
+          const data = await searchTMDB(search);
+          if (data.results.length === 0) {
+            setError('No results found. TMDB API key may not be configured.');
+          }
+          setTmdbResults(data.results.slice(0, 8));
+        } else {
+          const data = await searchIMDB(search, 8);
+          if (data.length === 0) {
+            setError('No results found on IMDB.');
+          }
+          setImdbResults(data);
+        }
+      } catch (err) {
+        setError('Search failed. Please try again.');
+        console.error('Search error:', err);
       }
       setLoading(false);
     }, 300);
@@ -225,57 +245,72 @@ export function TMDBLookup({ onSelect, tmdbId, imdbId, disabled }: MovieLookupPr
 
   async function selectIMDBMovie(imdbId: string) {
     setLoadingMovie(imdbId);
+    setError(null);
     try {
       const fullData = await getFullIMDBData(imdbId);
-      if (fullData && fullData.title) {
-        const movieData: MovieLookupData = {
-          tmdb_id: null,
-          imdb_id: fullData.title.id,
-          original_title: fullData.title.originalTitle || fullData.title.primaryTitle,
-          production_year: fullData.title.year || null,
-          runtime_minutes: imdbRuntimeToMinutes(fullData.title.runtimeSeconds),
-          poster_url: fullData.title.poster?.url || null,
-          backdrop_url: fullData.title.backdrop?.url || null,
-          trailer_url: fullData.trailer?.playbackURLs?.[0]?.url || null,
-          imdb_rating: fullData.title.rating?.aggregate || null,
-          genres: fullData.title.genres || [],
-          production_companies: fullData.productionCompanies.map((c: IMDBCompanyCredit) => ({
-            name: c.company.name,
-            country: c.countries?.[0] || '',
-          })),
-          production_countries: fullData.title.countriesOfOrigin || [],
-          directors: fullData.directors.map((d: IMDBCredit) => ({
-            id: d.name.id,
-            name: d.name.displayName,
-          })),
-          screenplay: fullData.writers.map((w: IMDBCredit) => ({
-            id: w.name.id,
-            name: w.name.displayName,
-          })),
-          music: fullData.composers.map((c: IMDBCredit) => ({
-            id: c.name.id,
-            name: c.name.displayName,
-          })),
-          cast: fullData.cast.map((c: IMDBCredit) => ({
-            id: c.name.id,
-            name: c.name.displayName,
-            character: c.characters?.[0] || '',
-          })),
-          plots: {
-            en: fullData.title.plot || '',
-            de: '',
-            fr: '',
-            lu: '',
-          },
-          countryReleaseDates: fullData.countryReleaseDates,
-          countryCertificates: fullData.countryCertificates,
-          localizedTitles: fullData.localizedTitles,
-        };
-        onSelect(movieData);
-        setIsOpen(false);
-        setSearch('');
-        setImdbResults([]);
+      if (!fullData) {
+        setError('Failed to fetch movie data from IMDB.');
+        return;
       }
+
+      // The title data can be directly in fullData.title OR directly in fullData
+      const title = fullData.title || fullData;
+
+      if (!title || (!title.primaryTitle && !title.originalTitle)) {
+        setError('Invalid movie data received from IMDB.');
+        return;
+      }
+
+      const movieData: MovieLookupData = {
+        tmdb_id: null,
+        imdb_id: title.id || imdbId,
+        original_title: title.originalTitle || title.primaryTitle || 'Unknown',
+        production_year: title.year || title.releaseYear || null,
+        runtime_minutes: imdbRuntimeToMinutes(title.runtimeSeconds || title.runtime),
+        poster_url: title.poster?.url || title.primaryImage?.url || null,
+        backdrop_url: title.backdrop?.url || null,
+        trailer_url: fullData.trailer?.playbackURLs?.[0]?.url || null,
+        imdb_rating: title.rating?.aggregate || title.ratingsSummary?.aggregateRating || null,
+        genres: title.genres || [],
+        production_companies: (fullData.productionCompanies || []).map((c: IMDBCompanyCredit) => ({
+          name: c.company?.name || c.name || '',
+          country: c.countries?.[0] || '',
+        })),
+        production_countries: title.countriesOfOrigin || [],
+        directors: (fullData.directors || []).map((d: IMDBCredit) => ({
+          id: d.name?.id || d.id || '',
+          name: d.name?.displayName || d.displayName || '',
+        })),
+        screenplay: (fullData.writers || []).map((w: IMDBCredit) => ({
+          id: w.name?.id || w.id || '',
+          name: w.name?.displayName || w.displayName || '',
+        })),
+        music: (fullData.composers || []).map((c: IMDBCredit) => ({
+          id: c.name?.id || c.id || '',
+          name: c.name?.displayName || c.displayName || '',
+        })),
+        cast: (fullData.cast || []).map((c: IMDBCredit) => ({
+          id: c.name?.id || c.id || '',
+          name: c.name?.displayName || c.displayName || '',
+          character: c.characters?.[0] || '',
+        })),
+        plots: {
+          en: title.plot || title.plotSummary?.text || '',
+          de: '',
+          fr: '',
+          lu: '',
+        },
+        countryReleaseDates: fullData.countryReleaseDates,
+        countryCertificates: fullData.countryCertificates,
+        localizedTitles: fullData.localizedTitles,
+      };
+      onSelect(movieData);
+      setIsOpen(false);
+      setSearch('');
+      setImdbResults([]);
+    } catch (err) {
+      console.error('IMDB select error:', err);
+      setError('Failed to load movie details.');
     } finally {
       setLoadingMovie(null);
     }
@@ -345,6 +380,13 @@ export function TMDBLookup({ onSelect, tmdbId, imdbId, disabled }: MovieLookupPr
             autoFocus
           />
         </div>
+
+        {/* Error message */}
+        {error && (
+          <div className="mb-3 p-2 rounded-md bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-400 text-sm">
+            {error}
+          </div>
+        )}
 
         {/* Results */}
         <div className="flex-1 overflow-y-auto space-y-2">

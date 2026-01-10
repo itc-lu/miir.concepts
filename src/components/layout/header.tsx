@@ -12,7 +12,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Bell, Menu, Search, LogOut, User, Settings } from 'lucide-react';
+import { Menu, Search, LogOut, User, Settings } from 'lucide-react';
+import { NotificationsDropdown } from './notifications';
 import type { UserProfile } from '@/types/database.types';
 
 interface HeaderProps {
@@ -63,11 +64,7 @@ export function Header({ user, onMenuClick }: HeaderProps) {
 
         <div className="flex items-center gap-x-4 lg:gap-x-6">
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
-            <span className="sr-only">View notifications</span>
-            <Bell className="h-5 w-5" />
-            <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />
-          </Button>
+          <NotificationsDropdown />
 
           {/* Separator */}
           <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-border" />

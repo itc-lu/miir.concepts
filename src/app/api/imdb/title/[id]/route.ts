@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const IMDB_API_BASE = 'https://api.imdbapi.dev/v2';
 
+// Helper to safely fetch JSON with error handling
+async function safeFetch(url: string) {
+  try {
+    const response = await fetch(url, {
+      headers: { 'Accept': 'application/json' },
+      next: { revalidate: 3600 },
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    console.error('Fetch error for', url, error);
+    return null;
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -10,30 +25,33 @@ export async function GET(
   const titleId = id.startsWith('tt') ? id : `tt${id}`;
 
   try {
-    // Fetch all data in parallel
-    const [titleRes, creditsRes, releaseDatesRes, akasRes, videosRes, certificatesRes, companyCreditsRes] =
-      await Promise.all([
-        fetch(`${IMDB_API_BASE}/titles/${titleId}`, { next: { revalidate: 3600 } }),
-        fetch(`${IMDB_API_BASE}/titles/${titleId}/credits?pageSize=50&categories=actor,director,writer,composer`, { next: { revalidate: 3600 } }),
-        fetch(`${IMDB_API_BASE}/titles/${titleId}/releaseDates`, { next: { revalidate: 3600 } }),
-        fetch(`${IMDB_API_BASE}/titles/${titleId}/akas`, { next: { revalidate: 3600 } }),
-        fetch(`${IMDB_API_BASE}/titles/${titleId}/videos?pageSize=5`, { next: { revalidate: 3600 } }),
-        fetch(`${IMDB_API_BASE}/titles/${titleId}/certificates`, { next: { revalidate: 3600 } }),
-        fetch(`${IMDB_API_BASE}/titles/${titleId}/companyCredits`, { next: { revalidate: 3600 } }),
-      ]);
+    // Fetch title data first (required)
+    const titleData = await safeFetch(`${IMDB_API_BASE}/titles/${titleId}`);
 
-    if (!titleRes.ok) {
-      console.error('IMDB title fetch failed:', titleRes.status);
+    if (!titleData) {
+      console.error('IMDB title fetch failed for:', titleId);
       return NextResponse.json({ error: 'Title not found' }, { status: 404 });
     }
 
-    const title = await titleRes.json();
-    const credits = creditsRes.ok ? (await creditsRes.json()).credits || [] : [];
-    const releaseDates = releaseDatesRes.ok ? (await releaseDatesRes.json()).releaseDates || [] : [];
-    const akas = akasRes.ok ? (await akasRes.json()).akas || [] : [];
-    const videos = videosRes.ok ? (await videosRes.json()).videos || [] : [];
-    const certificates = certificatesRes.ok ? (await certificatesRes.json()).certificates || [] : [];
-    const companyCredits = companyCreditsRes.ok ? (await companyCreditsRes.json()).companyCredits || [] : [];
+    // Fetch supplementary data in parallel (optional - don't fail if unavailable)
+    const [creditsData, releaseDatesData, akasData, videosData, certificatesData, companyCreditsData] =
+      await Promise.all([
+        safeFetch(`${IMDB_API_BASE}/titles/${titleId}/credits?pageSize=50&categories=actor,director,writer,composer`),
+        safeFetch(`${IMDB_API_BASE}/titles/${titleId}/releaseDates`),
+        safeFetch(`${IMDB_API_BASE}/titles/${titleId}/akas`),
+        safeFetch(`${IMDB_API_BASE}/titles/${titleId}/videos?pageSize=5`),
+        safeFetch(`${IMDB_API_BASE}/titles/${titleId}/certificates`),
+        safeFetch(`${IMDB_API_BASE}/titles/${titleId}/companyCredits`),
+      ]);
+
+    // The title data is the main response object
+    const title = titleData;
+    const credits = creditsData?.credits || [];
+    const releaseDates = releaseDatesData?.releaseDates || [];
+    const akas = akasData?.akas || [];
+    const videos = videosData?.videos || [];
+    const certificates = certificatesData?.certificates || [];
+    const companyCredits = companyCreditsData?.companyCredits || [];
 
     // Parse credits by category
     const directors = credits.filter((c: any) => c.category === 'director');

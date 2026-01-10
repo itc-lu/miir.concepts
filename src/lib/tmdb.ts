@@ -4,13 +4,50 @@
 const TMDB_API_BASE = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
 
-// API key should be set in environment variables
-function getApiKey(): string {
-  const key = process.env.NEXT_PUBLIC_TMDB_API_KEY;
-  if (!key) {
-    console.warn('TMDB API key not configured. Set NEXT_PUBLIC_TMDB_API_KEY in your environment.');
+// Cache for API key from database
+let cachedApiKey: string | null = null;
+let cacheTimestamp = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// API key - tries database first, then environment variable
+async function getApiKeyAsync(): Promise<string> {
+  // Check cache first
+  if (cachedApiKey !== null && Date.now() - cacheTimestamp < CACHE_DURATION) {
+    return cachedApiKey;
   }
-  return key || '';
+
+  // Try to get from API route (which reads from database)
+  try {
+    const response = await fetch('/api/settings/tmdb_api_key', {
+      cache: 'no-store',
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data.value) {
+        cachedApiKey = data.value;
+        cacheTimestamp = Date.now();
+        return data.value;
+      }
+    }
+  } catch {
+    // API route not available (SSR or error), fall back to env
+  }
+
+  // Fallback to environment variable
+  const envKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
+  if (envKey) {
+    cachedApiKey = envKey;
+    cacheTimestamp = Date.now();
+    return envKey;
+  }
+
+  return '';
+}
+
+// Sync version for backward compatibility (uses cache or env only)
+function getApiKey(): string {
+  if (cachedApiKey) return cachedApiKey;
+  return process.env.NEXT_PUBLIC_TMDB_API_KEY || '';
 }
 
 export interface TMDBSearchResult {
@@ -134,7 +171,7 @@ export function getTMDBBackdropUrl(path: string | null, size: 'w300' | 'w780' | 
 
 // API functions
 export async function searchMovies(query: string, page = 1): Promise<{ results: TMDBSearchResult[]; total_results: number; total_pages: number }> {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKeyAsync();
   if (!apiKey) {
     return { results: [], total_results: 0, total_pages: 0 };
   }
@@ -153,7 +190,7 @@ export async function searchMovies(query: string, page = 1): Promise<{ results: 
 }
 
 export async function getMovieDetails(tmdbId: number): Promise<TMDBMovieDetails | null> {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKeyAsync();
   if (!apiKey) return null;
 
   const response = await fetch(
@@ -170,7 +207,7 @@ export async function getMovieDetails(tmdbId: number): Promise<TMDBMovieDetails 
 }
 
 export async function getMovieCredits(tmdbId: number): Promise<TMDBCredits | null> {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKeyAsync();
   if (!apiKey) return null;
 
   const response = await fetch(
@@ -187,7 +224,7 @@ export async function getMovieCredits(tmdbId: number): Promise<TMDBCredits | nul
 }
 
 export async function getMovieImages(tmdbId: number): Promise<TMDBImages | null> {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKeyAsync();
   if (!apiKey) return null;
 
   const response = await fetch(
@@ -204,7 +241,7 @@ export async function getMovieImages(tmdbId: number): Promise<TMDBImages | null>
 }
 
 export async function getMovieTranslations(tmdbId: number): Promise<TMDBTranslations | null> {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKeyAsync();
   if (!apiKey) return null;
 
   const response = await fetch(
@@ -221,7 +258,7 @@ export async function getMovieTranslations(tmdbId: number): Promise<TMDBTranslat
 }
 
 export async function getMovieVideos(tmdbId: number): Promise<TMDBVideos | null> {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKeyAsync();
   if (!apiKey) return null;
 
   const response = await fetch(
@@ -291,7 +328,7 @@ export async function getFullMovieData(tmdbId: number) {
 
 // IMDB lookup (via TMDB's external IDs)
 export async function findByImdbId(imdbId: string): Promise<number | null> {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKeyAsync();
   if (!apiKey) return null;
 
   const response = await fetch(

@@ -26,21 +26,35 @@ function LoginForm() {
     setLoading(true);
     setError(null);
 
+    // Debug: log Supabase URL (not the key)
+    console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
+      console.log('Auth response:', { data, error });
+
       if (error) {
-        setError(error.message);
+        console.error('Auth error:', error);
+        // Provide more helpful error messages
+        if (error.message.includes('Invalid login')) {
+          setError('Invalid email or password. Please check your credentials.');
+        } else if (error.status === 500) {
+          setError('Server error. Please try again or contact support.');
+        } else {
+          setError(error.message);
+        }
         return;
       }
 
       router.push(redirectTo);
       router.refresh();
-    } catch {
-      setError('An unexpected error occurred');
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      setError('An unexpected error occurred. Check the console for details.');
     } finally {
       setLoading(false);
     }

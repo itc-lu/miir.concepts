@@ -256,20 +256,34 @@ ALTER TABLE movies_l1 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE movies_l2 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
 
--- Public read policies for reference tables
-CREATE POLICY IF NOT EXISTS "Public read" ON countries FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Public read" ON languages FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Public read" ON formats FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Public read" ON technologies FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Public read" ON genres FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Public read" ON age_ratings FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Public read" ON cinema_groups FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Public read" ON cinemas FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Public read" ON movies_l0 FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Public read" ON movies_l1 FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Public read" ON movies_l2 FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Public read" ON sessions FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Public read" ON user_profiles FOR SELECT USING (true);
+-- Public read policies for reference tables (drop first, then create)
+DROP POLICY IF EXISTS "Public read" ON countries;
+DROP POLICY IF EXISTS "Public read" ON languages;
+DROP POLICY IF EXISTS "Public read" ON formats;
+DROP POLICY IF EXISTS "Public read" ON technologies;
+DROP POLICY IF EXISTS "Public read" ON genres;
+DROP POLICY IF EXISTS "Public read" ON age_ratings;
+DROP POLICY IF EXISTS "Public read" ON cinema_groups;
+DROP POLICY IF EXISTS "Public read" ON cinemas;
+DROP POLICY IF EXISTS "Public read" ON movies_l0;
+DROP POLICY IF EXISTS "Public read" ON movies_l1;
+DROP POLICY IF EXISTS "Public read" ON movies_l2;
+DROP POLICY IF EXISTS "Public read" ON sessions;
+DROP POLICY IF EXISTS "Public read" ON user_profiles;
+
+CREATE POLICY "Public read" ON countries FOR SELECT USING (true);
+CREATE POLICY "Public read" ON languages FOR SELECT USING (true);
+CREATE POLICY "Public read" ON formats FOR SELECT USING (true);
+CREATE POLICY "Public read" ON technologies FOR SELECT USING (true);
+CREATE POLICY "Public read" ON genres FOR SELECT USING (true);
+CREATE POLICY "Public read" ON age_ratings FOR SELECT USING (true);
+CREATE POLICY "Public read" ON cinema_groups FOR SELECT USING (true);
+CREATE POLICY "Public read" ON cinemas FOR SELECT USING (true);
+CREATE POLICY "Public read" ON movies_l0 FOR SELECT USING (true);
+CREATE POLICY "Public read" ON movies_l1 FOR SELECT USING (true);
+CREATE POLICY "Public read" ON movies_l2 FOR SELECT USING (true);
+CREATE POLICY "Public read" ON sessions FOR SELECT USING (true);
+CREATE POLICY "Public read" ON user_profiles FOR SELECT USING (true);
 
 -- User can update own profile
 DROP POLICY IF EXISTS "Users update own" ON user_profiles;

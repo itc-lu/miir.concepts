@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const IMDB_API_BASE = 'https://api.imdbapi.dev/v2';
+const IMDB_API_BASE = 'https://api.imdbapi.dev';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;

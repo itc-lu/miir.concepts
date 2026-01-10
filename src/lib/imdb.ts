@@ -1,7 +1,7 @@
 // IMDB API Service using imdbapi.dev (free, no authentication required)
 // API Documentation: https://imdbapi.dev/
 
-const IMDB_API_BASE = 'https://api.imdbapi.dev/v2';
+const IMDB_API_BASE = 'https://api.imdbapi.dev';
 
 export interface IMDBSearchResult {
   id: string;  // e.g., "tt1234567"

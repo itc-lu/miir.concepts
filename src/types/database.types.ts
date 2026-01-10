@@ -20,9 +20,21 @@ export interface Country {
   code: string;
   name: string;
   name_native: string | null;
+  week_start_day: number; // 0=Sunday, 1=Monday, ..., 6=Saturday
+  display_name: string | null; // Computed: "[CODE] Name"
   created_at: string;
   updated_at: string;
 }
+
+// Flag type enum matching database
+export type FlagType =
+  | 'releases_of_the_week'
+  | 'previews_of_the_week'
+  | 'special_screenings_of_the_week'
+  | 'festival_screenings'
+  | 'movie_of_the_week'
+  | 'movie_of_the_day'
+  | 'open_air';
 
 export interface Language {
   id: string;
@@ -113,9 +125,15 @@ export interface SessionTag {
   color: string | null;
   description: string | null;
   is_active: boolean;
+  is_basic_flag: boolean;
+  is_superior_flag: boolean;
+  flag_type: FlagType | null;
   created_at: string;
   updated_at: string;
 }
+
+// Alias for clarity - SessionTag is now used as Cinema Flag
+export type CinemaFlag = SessionTag;
 
 // ============================================================================
 // CINEMA TABLES
@@ -154,6 +172,9 @@ export interface Cinema {
   latitude: number | null;
   longitude: number | null;
   screen_count: number;
+  timezone: string; // e.g., "Europe/Luxembourg"
+  week_start_day_override: number | null; // Override country's week start day
+  missing_info: string | null; // Notes about missing data
   is_active: boolean;
   parser_type: string | null;
   parser_config: Record<string, unknown> | null;
@@ -194,6 +215,7 @@ export interface MovieL0 {
   slug: string;
   production_year: number | null;
   runtime_minutes: number | null;
+  duration_hours: number | null; // Runtime as decimal hours (e.g., 2.5 = 2h 30m)
   poster_url: string | null;
   backdrop_url: string | null;
   trailer_url: string | null;
@@ -344,6 +366,108 @@ export interface Session {
   movie_l2?: MovieL2;
   cinema?: Cinema;
   tags?: SessionTag[];
+}
+
+// ============================================================================
+// SCREENING HIERARCHY (per requirements)
+// ============================================================================
+
+// Cinema Screening - represents a week of showings for a movie edition
+export interface Screening {
+  id: string;
+  cinema_id: string;
+  movie_l2_id: string;
+  format_id: string | null;
+  start_week_day: string; // First day of screening week (DATE)
+  movie_of_the_week: boolean;
+  movie_of_the_day: boolean;
+  day_flag_added_date: string | null; // When "movie of the day" was assigned
+  state: 'to_verify' | 'verified';
+  missing_info: string | null;
+  created_at: string;
+  updated_at: string;
+  // Relations
+  cinema?: Cinema;
+  movie_l2?: MovieL2;
+  format?: Format;
+  flags?: SessionTag[];
+  session_days?: SessionDay[];
+}
+
+// Cinema Session Day - one day within a screening week
+export interface SessionDay {
+  id: string;
+  screening_id: string;
+  date: string;
+  created_at: string;
+  // Relations
+  screening?: Screening;
+  session_times?: SessionTime[];
+}
+
+// Cinema Session Time - individual showing time
+export interface SessionTime {
+  id: string;
+  session_day_id: string;
+  time_float: number; // Time as decimal hours (e.g., 14.5 = 14:30)
+  start_datetime: string | null;
+  end_datetime: string | null;
+  created_at: string;
+  // Relations
+  session_day?: SessionDay;
+}
+
+// ============================================================================
+// MOVIE COUNTRY WEEK TRACKING
+// ============================================================================
+
+export interface MovieCountryWeek {
+  id: string;
+  movie_l2_id: string;
+  country_id: string;
+  national_start_date: string;
+  weeks_showing: number;
+  created_at: string;
+  updated_at: string;
+  // Relations
+  movie_l2?: MovieL2;
+  country?: Country;
+}
+
+// ============================================================================
+// FLAG AUTOMATION
+// ============================================================================
+
+export interface FlagDateConfig {
+  id: string;
+  movie_l2_id: string;
+  cinema_group_id: string | null;
+  cinema_id: string | null;
+  movie_of_the_day_date: string | null;
+  movie_of_the_week_date: string | null;
+  created_at: string;
+  updated_at: string;
+  // Relations
+  movie_l2?: MovieL2;
+  cinema_group?: CinemaGroup;
+  cinema?: Cinema;
+}
+
+// ============================================================================
+// EXPORT MAPPINGS
+// ============================================================================
+
+export interface ExportTechnologyMapping {
+  id: string;
+  export_client_id: string;
+  format_id: string | null;
+  technology_id: string | null;
+  export_code: string;
+  created_at: string;
+  // Relations
+  export_client?: ExportClient;
+  format?: Format;
+  technology?: Technology;
 }
 
 // ============================================================================
@@ -633,7 +757,35 @@ export interface CinemaInput {
   latitude?: number | null;
   longitude?: number | null;
   screen_count?: number;
+  timezone?: string;
+  week_start_day_override?: number | null;
+  missing_info?: string | null;
   parser_type?: string | null;
   parser_config?: Record<string, unknown> | null;
   tag_ids?: string[];
+}
+
+// ============================================================================
+// SCREENING INPUT TYPES
+// ============================================================================
+
+export interface ScreeningInput {
+  cinema_id: string;
+  movie_l2_id: string;
+  format_id?: string | null;
+  start_week_day: string;
+  flag_ids?: string[];
+}
+
+export interface SessionTimeInput {
+  session_day_id: string;
+  time_float: number; // e.g., 14.5 for 14:30
+}
+
+export interface FlagDateConfigInput {
+  movie_l2_id: string;
+  cinema_group_id?: string | null;
+  cinema_id?: string | null;
+  movie_of_the_day_date?: string | null;
+  movie_of_the_week_date?: string | null;
 }

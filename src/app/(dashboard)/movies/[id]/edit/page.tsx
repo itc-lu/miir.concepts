@@ -329,7 +329,7 @@ export default function EditMoviePage() {
       backdrop_url: prev.backdrop_url || data.backdrop_url || '',
       trailer_url: prev.trailer_url || data.trailer_url || '',
       imdb_id: prev.imdb_id || data.imdb_id || '',
-      tmdb_id: prev.tmdb_id || data.tmdb_id.toString(),
+      tmdb_id: prev.tmdb_id || (data.tmdb_id?.toString() || ''),
     }));
 
     // Import plots only if empty
@@ -404,11 +404,18 @@ export default function EditMoviePage() {
       return '';
     }
 
+    // Helper to get numeric ID (TMDB uses numbers, IMDB uses strings)
+    const getNumericId = (id: string | number): number | undefined => {
+      if (typeof id === 'number') return id;
+      const num = parseInt(id);
+      return isNaN(num) ? undefined : num;
+    };
+
     // Import directors
     if (directors.length === 0 && data.directors.length > 0) {
       const newDirectors = [];
       for (const d of data.directors.slice(0, 3)) {
-        const personId = await getOrCreatePerson(d.name, d.id);
+        const personId = await getOrCreatePerson(d.name, getNumericId(d.id));
         if (personId) newDirectors.push({ person_id: personId, name: d.name });
       }
       setDirectors(newDirectors);
@@ -418,7 +425,7 @@ export default function EditMoviePage() {
     if (screenplay.length === 0 && data.screenplay.length > 0) {
       const newScreenplay = [];
       for (const s of data.screenplay.slice(0, 3)) {
-        const personId = await getOrCreatePerson(s.name, s.id);
+        const personId = await getOrCreatePerson(s.name, getNumericId(s.id));
         if (personId) newScreenplay.push({ person_id: personId, name: s.name });
       }
       setScreenplay(newScreenplay);
@@ -428,7 +435,7 @@ export default function EditMoviePage() {
     if (music.length === 0 && data.music.length > 0) {
       const newMusic = [];
       for (const m of data.music.slice(0, 2)) {
-        const personId = await getOrCreatePerson(m.name, m.id);
+        const personId = await getOrCreatePerson(m.name, getNumericId(m.id));
         if (personId) newMusic.push({ person_id: personId, name: m.name });
       }
       setMusic(newMusic);
@@ -438,7 +445,7 @@ export default function EditMoviePage() {
     if (cast.length === 0 && data.cast.length > 0) {
       const newCast = [];
       for (const c of data.cast.slice(0, 10)) {
-        const personId = await getOrCreatePerson(c.name, c.id);
+        const personId = await getOrCreatePerson(c.name, getNumericId(c.id));
         if (personId) newCast.push({ person_id: personId, name: c.name, character: c.character });
       }
       setCast(newCast);

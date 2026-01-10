@@ -16,12 +16,11 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   ArrowLeft, Pencil, Film, Calendar, Clock, Star, Globe, Plus, Users,
-  Languages, Clapperboard, Tag, CheckCircle, AlertCircle, Trash2, ExternalLink, Mic,
+  Clapperboard, CheckCircle, AlertCircle, Trash2, ExternalLink, Mic, ShieldCheck,
 } from 'lucide-react';
 import { formatDate, formatRuntime } from '@/lib/utils';
 
@@ -48,39 +47,32 @@ interface MovieL0 {
   notes: string | null;
   created_at: string;
   updated_at: string;
-  genres: Array<{ genre: { id: string; name: string } }>;
-  countries: Array<{ country: { id: string; code: string; name: string }; is_primary: boolean }>;
-  tags: Array<{ tag: { id: string; name: string; color: string | null } }>;
-  directors: Array<{ person: Person }>;
-  screenplay: Array<{ person: Person }>;
-  music: Array<{ person: Person }>;
-  cast: Array<{ person: Person; character_name: string | null; display_order: number }>;
-  production_companies: Array<{ company: { id: string; name: string }; country: { code: string } | null }>;
-  plots: Array<{ language: { code: string; name: string }; plot: string }>;
-  stills: Array<{ id: string; url: string; caption: string | null; display_order: number }>;
 }
 
 interface MovieL1 {
   id: string;
   country_id: string;
-  country: { id: string; code: string; name: string };
+  language_id: string;
+  country: { id: string; code: string; name: string } | null;
+  language: { id: string; code: string; name: string } | null;
   title: string;
   local_title: string | null;
+  plot: string | null;
   release_date: string | null;
   runtime_minutes: number | null;
-  age_rating: { id: string; code: string; name: string; country: { code: string } } | null;
-  sync_voices: Array<{ person: Person; role_description: string | null }>;
+  age_rating: { id: string; code: string; name: string } | null;
 }
 
 interface MovieL2 {
   id: string;
   movie_l1_id: string;
-  movie_l1: { title: string; country: { code: string } } | null;
+  movie_l1: { title: string; country: { code: string } | null } | null;
   edition_title: string | null;
   format: { id: string; code: string; name: string } | null;
   technology: { id: string; code: string; name: string } | null;
   audio_language: { id: string; code: string; name: string } | null;
-  subtitles: Array<{ language: { id: string; code: string; name: string }; subtitle_type: string }>;
+  subtitle_language: { id: string; code: string; name: string } | null;
+  subtitle_language_2: { id: string; code: string; name: string } | null;
   is_original_version: boolean;
   is_active: boolean;
   notes: string | null;
@@ -100,6 +92,12 @@ export default function MovieDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [movie, setMovie] = useState<MovieL0 | null>(null);
+  const [genres, setGenres] = useState<Array<{ name: string }>>([]);
+  const [countries, setCountries] = useState<Array<{ code: string; name: string; is_primary: boolean }>>([]);
+  const [tags, setTags] = useState<Array<{ name: string; color: string | null }>>([]);
+  const [crew, setCrew] = useState<Array<{ role: string; person: Person }>>([]);
+  const [cast, setCast] = useState<Array<{ person: Person; character_name: string | null; billing_order: number }>>([]);
+  const [companies, setCompanies] = useState<Array<{ company_name: string; country_code: string | null }>>([]);
   const [releases, setReleases] = useState<MovieL1[]>([]);
   const [editions, setEditions] = useState<MovieL2[]>([]);
 
@@ -111,6 +109,7 @@ export default function MovieDetailPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteType, setDeleteType] = useState<'l1' | 'l2' | null>(null);
   const [deleteItem, setDeleteItem] = useState<MovieL1 | MovieL2 | null>(null);
+  const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
 
   // Form states
   const [formError, setFormError] = useState<string | null>(null);
@@ -118,13 +117,13 @@ export default function MovieDetailPage() {
   const [formLoading, setFormLoading] = useState(false);
 
   // Reference data
-  const [countries, setCountries] = useState<Array<{ id: string; code: string; name: string }>>([]);
+  const [allCountries, setAllCountries] = useState<Array<{ id: string; code: string; name: string }>>([]);
   const [languages, setLanguages] = useState<Array<{ id: string; code: string; name: string }>>([]);
   const [formats, setFormats] = useState<Array<{ id: string; code: string; name: string }>>([]);
   const [technologies, setTechnologies] = useState<Array<{ id: string; code: string; name: string }>>([]);
   const [ageRatings, setAgeRatings] = useState<Array<{ id: string; code: string; name: string; country_id: string }>>([]);
 
-  // L1 form data (country-based releases)
+  // L1 form data
   const [l1Form, setL1Form] = useState({
     country_id: '',
     title: '',
@@ -134,14 +133,15 @@ export default function MovieDetailPage() {
     age_rating_id: '',
   });
 
-  // L2 form data (editions linked to L1)
+  // L2 form data
   const [l2Form, setL2Form] = useState({
     movie_l1_id: '',
     edition_title: '',
     format_id: '',
     technology_id: '',
     audio_language_id: '',
-    subtitle_language_ids: [] as string[],
+    subtitle_language_id: '',
+    subtitle_language_2_id: '',
     is_original_version: false,
     is_active: true,
     notes: '',
@@ -155,46 +155,114 @@ export default function MovieDetailPage() {
   async function fetchMovie() {
     setLoading(true);
 
-    // Fetch L0 with all related data
-    const { data: l0Data } = await supabase
+    // Fetch L0 basic data
+    const { data: l0Data, error: l0Error } = await supabase
       .from('movies_l0')
-      .select(`
-        *,
-        genres:movie_l0_genres(genre:genres(id, name)),
-        countries:movie_l0_countries(country:countries(id, code, name), is_primary),
-        tags:movie_l0_tags(tag:movie_tags(id, name, color)),
-        directors:movie_l0_directors(person:persons(id, name)),
-        screenplay:movie_l0_screenplay(person:persons(id, name)),
-        music:movie_l0_music(person:persons(id, name)),
-        cast:movie_l0_cast(person:persons(id, name), character_name, display_order),
-        production_companies:movie_l0_production_companies(company:production_companies(id, name), country:countries(code)),
-        plots:movie_l0_plots(language:languages(code, name), plot),
-        stills:movie_stills(id, url, caption, display_order)
-      `)
+      .select('*')
       .eq('id', movieId)
       .single();
 
-    if (l0Data) {
-      setMovie(l0Data as unknown as MovieL0);
+    if (l0Error || !l0Data) {
+      setLoading(false);
+      return;
     }
 
-    // Fetch L1 (country-based releases) with sync voices
+    setMovie(l0Data as MovieL0);
+
+    // Fetch genres
+    const { data: genresData } = await supabase
+      .from('movie_l0_genres')
+      .select('genre:genres(name)')
+      .eq('movie_id', movieId);
+
+    if (genresData) {
+      setGenres(genresData.map((g: any) => ({ name: g.genre?.name || '' })));
+    }
+
+    // Fetch countries
+    const { data: countriesData } = await supabase
+      .from('movie_l0_countries')
+      .select('country:countries(code, name), is_primary')
+      .eq('movie_id', movieId);
+
+    if (countriesData) {
+      setCountries(countriesData.map((c: any) => ({
+        code: c.country?.code || '',
+        name: c.country?.name || '',
+        is_primary: c.is_primary,
+      })));
+    }
+
+    // Fetch tags
+    const { data: tagsData } = await supabase
+      .from('movie_l0_tags')
+      .select('tag:movie_tags(name, color)')
+      .eq('movie_id', movieId);
+
+    if (tagsData) {
+      setTags(tagsData.map((t: any) => ({
+        name: t.tag?.name || '',
+        color: t.tag?.color,
+      })));
+    }
+
+    // Fetch crew (directors, screenplay, music)
+    const { data: crewData } = await supabase
+      .from('movie_l0_crew')
+      .select('role, person:people(id, name)')
+      .eq('movie_id', movieId);
+
+    if (crewData) {
+      setCrew(crewData.map((c: any) => ({
+        role: c.role,
+        person: c.person,
+      })));
+    }
+
+    // Fetch cast
+    const { data: castData } = await supabase
+      .from('movie_l0_cast')
+      .select('person:people(id, name), character_name, billing_order')
+      .eq('movie_id', movieId)
+      .order('billing_order');
+
+    if (castData) {
+      setCast(castData.map((c: any) => ({
+        person: c.person,
+        character_name: c.character_name,
+        billing_order: c.billing_order,
+      })));
+    }
+
+    // Fetch production companies
+    const { data: companiesData } = await supabase
+      .from('movie_l0_companies')
+      .select('company_name, country:countries(code)')
+      .eq('movie_id', movieId);
+
+    if (companiesData) {
+      setCompanies(companiesData.map((c: any) => ({
+        company_name: c.company_name,
+        country_code: c.country?.code || null,
+      })));
+    }
+
+    // Fetch L1 (releases)
     const { data: l1Data } = await supabase
       .from('movies_l1')
       .select(`
         *,
         country:countries(id, code, name),
-        age_rating:age_ratings(id, code, name, country:countries(code)),
-        sync_voices:movie_l1_sync_voices(person:persons(id, name), role_description)
+        language:languages(id, code, name),
+        age_rating:age_ratings(id, code, name)
       `)
-      .eq('movie_l0_id', movieId)
-      .order('country_id');
+      .eq('movie_l0_id', movieId);
 
     if (l1Data) {
       setReleases(l1Data as unknown as MovieL1[]);
     }
 
-    // Fetch L2 (editions linked to L1) with multiple subtitles
+    // Fetch L2 (editions)
     const { data: l2Data } = await supabase
       .from('movies_l2')
       .select(`
@@ -203,7 +271,8 @@ export default function MovieDetailPage() {
         format:formats(id, code, name),
         technology:technologies(id, code, name),
         audio_language:languages!movies_l2_audio_language_id_fkey(id, code, name),
-        subtitles:movie_l2_subtitles(language:languages(id, code, name), subtitle_type)
+        subtitle_language:languages!movies_l2_subtitle_language_id_fkey(id, code, name),
+        subtitle_language_2:languages!movies_l2_subtitle_language_2_id_fkey(id, code, name)
       `)
       .eq('movie_l0_id', movieId);
 
@@ -223,7 +292,7 @@ export default function MovieDetailPage() {
       supabase.from('age_ratings').select('id, code, name, country_id').eq('is_active', true).order('display_order'),
     ]);
 
-    if (countryRes.data) setCountries(countryRes.data);
+    if (countryRes.data) setAllCountries(countryRes.data);
     if (langRes.data) setLanguages(langRes.data);
     if (formatRes.data) setFormats(formatRes.data);
     if (techRes.data) setTechnologies(techRes.data);
@@ -234,7 +303,7 @@ export default function MovieDetailPage() {
     if (l1) {
       setEditingL1(l1);
       setL1Form({
-        country_id: l1.country_id,
+        country_id: l1.country_id || '',
         title: l1.title,
         local_title: l1.local_title || '',
         release_date: l1.release_date || '',
@@ -245,10 +314,10 @@ export default function MovieDetailPage() {
       setEditingL1(null);
       setL1Form({
         country_id: '',
-        title: '',
+        title: movie?.original_title || '',
         local_title: '',
         release_date: '',
-        runtime_minutes: '',
+        runtime_minutes: movie?.runtime_minutes?.toString() || '',
         age_rating_id: '',
       });
     }
@@ -261,12 +330,13 @@ export default function MovieDetailPage() {
     if (l2) {
       setEditingL2(l2);
       setL2Form({
-        movie_l1_id: l2.movie_l1_id,
+        movie_l1_id: l2.movie_l1_id || '',
         edition_title: l2.edition_title || '',
         format_id: l2.format?.id || '',
         technology_id: l2.technology?.id || '',
         audio_language_id: l2.audio_language?.id || '',
-        subtitle_language_ids: l2.subtitles?.map(s => s.language.id) || [],
+        subtitle_language_id: l2.subtitle_language?.id || '',
+        subtitle_language_2_id: l2.subtitle_language_2?.id || '',
         is_original_version: l2.is_original_version,
         is_active: l2.is_active,
         notes: l2.notes || '',
@@ -279,7 +349,8 @@ export default function MovieDetailPage() {
         format_id: '',
         technology_id: '',
         audio_language_id: '',
-        subtitle_language_ids: [],
+        subtitle_language_id: '',
+        subtitle_language_2_id: '',
         is_original_version: false,
         is_active: true,
         notes: '',
@@ -296,15 +367,19 @@ export default function MovieDetailPage() {
     setFormError(null);
 
     try {
-      const payload = {
+      const payload: any = {
         movie_l0_id: movieId,
-        country_id: l1Form.country_id,
         title: l1Form.title,
         local_title: l1Form.local_title || null,
         release_date: l1Form.release_date || null,
         runtime_minutes: l1Form.runtime_minutes ? parseInt(l1Form.runtime_minutes) : null,
         age_rating_id: l1Form.age_rating_id || null,
       };
+
+      // Set either country_id or language_id based on what's selected
+      if (l1Form.country_id) {
+        payload.country_id = l1Form.country_id;
+      }
 
       if (editingL1) {
         const { error } = await supabase
@@ -344,12 +419,12 @@ export default function MovieDetailPage() {
         format_id: l2Form.format_id || null,
         technology_id: l2Form.technology_id || null,
         audio_language_id: l2Form.audio_language_id || null,
+        subtitle_language_id: l2Form.subtitle_language_id || null,
+        subtitle_language_2_id: l2Form.subtitle_language_2_id || null,
         is_original_version: l2Form.is_original_version,
         is_active: l2Form.is_active,
         notes: l2Form.notes || null,
       };
-
-      let editionId: string;
 
       if (editingL2) {
         const { error } = await supabase
@@ -357,27 +432,13 @@ export default function MovieDetailPage() {
           .update(payload)
           .eq('id', editingL2.id);
         if (error) throw error;
-        editionId = editingL2.id;
-
-        // Update subtitles - delete existing and insert new
-        await supabase.from('movie_l2_subtitles').delete().eq('movie_l2_id', editionId);
+        setFormSuccess('Edition updated');
       } else {
-        const { data, error } = await supabase.from('movies_l2').insert(payload).select('id').single();
+        const { error } = await supabase.from('movies_l2').insert(payload);
         if (error) throw error;
-        editionId = data.id;
+        setFormSuccess('Edition added');
       }
 
-      // Insert new subtitles
-      if (l2Form.subtitle_language_ids.length > 0) {
-        const subtitleRecords = l2Form.subtitle_language_ids.map((langId, idx) => ({
-          movie_l2_id: editionId,
-          language_id: langId,
-          display_order: idx + 1,
-        }));
-        await supabase.from('movie_l2_subtitles').insert(subtitleRecords);
-      }
-
-      setFormSuccess(editingL2 ? 'Edition updated' : 'Edition added');
       await fetchMovie();
       setTimeout(() => {
         setL2DialogOpen(false);
@@ -407,12 +468,33 @@ export default function MovieDetailPage() {
     }
   }
 
+  async function handleVerify() {
+    setFormLoading(true);
+    try {
+      const { error } = await supabase
+        .from('movies_l0')
+        .update({ is_verified: true, status: 'verified' })
+        .eq('id', movieId);
+      if (error) throw error;
+      await fetchMovie();
+      setVerifyDialogOpen(false);
+    } catch (err: any) {
+      console.error('Verify failed:', err);
+    } finally {
+      setFormLoading(false);
+    }
+  }
+
   const statusColors: Record<string, 'default' | 'secondary' | 'success' | 'warning'> = {
     draft: 'secondary',
     pending_review: 'warning',
     verified: 'success',
     archived: 'default',
   };
+
+  const directors = crew.filter(c => c.role === 'director');
+  const screenplayWriters = crew.filter(c => c.role === 'screenplay');
+  const composers = crew.filter(c => c.role === 'music');
 
   if (loading) {
     return (
@@ -486,20 +568,28 @@ export default function MovieDetailPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {movie.genres?.map((g, i) => (
-              <Badge key={i} variant="outline">{g.genre?.name}</Badge>
+            {genres.map((g, i) => (
+              <Badge key={i} variant="outline">{g.name}</Badge>
             ))}
           </div>
         </div>
 
-        {canEdit && (
-          <Link href={`/movies/${movieId}/edit`}>
-            <Button>
-              <Pencil className="h-4 w-4 mr-2" />
-              Edit Movie
+        <div className="flex gap-2">
+          {canEdit && !movie.is_verified && (
+            <Button variant="outline" onClick={() => setVerifyDialogOpen(true)}>
+              <ShieldCheck className="h-4 w-4 mr-2" />
+              Verify
             </Button>
-          </Link>
-        )}
+          )}
+          {canEdit && (
+            <Link href={`/movies/${movieId}/edit`}>
+              <Button>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit Movie
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -566,39 +656,39 @@ export default function MovieDetailPage() {
                 </div>
               </div>
 
-              {movie.production_companies && movie.production_companies.length > 0 && (
+              {companies.length > 0 && (
                 <div>
                   <span className="text-muted-foreground text-sm">Production Companies</span>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {movie.production_companies.map((pc, i) => (
+                    {companies.map((c, i) => (
                       <Badge key={i} variant="outline">
-                        {pc.company?.name} {pc.country?.code && `(${pc.country.code})`}
+                        {c.company_name} {c.country_code && `(${c.country_code})`}
                       </Badge>
                     ))}
                   </div>
                 </div>
               )}
 
-              {movie.countries && movie.countries.length > 0 && (
+              {countries.length > 0 && (
                 <div>
                   <span className="text-muted-foreground text-sm">Production Countries</span>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {movie.countries.map((c, i) => (
+                    {countries.map((c, i) => (
                       <Badge key={i} variant={c.is_primary ? 'default' : 'outline'}>
-                        {c.country?.name}
+                        {c.name}
                       </Badge>
                     ))}
                   </div>
                 </div>
               )}
 
-              {movie.tags && movie.tags.length > 0 && (
+              {tags.length > 0 && (
                 <div>
                   <span className="text-muted-foreground text-sm">Tags</span>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {movie.tags.map((t, i) => (
-                      <Badge key={i} variant="outline" style={{ borderColor: t.tag?.color || undefined }}>
-                        {t.tag?.name}
+                    {tags.map((t, i) => (
+                      <Badge key={i} variant="outline" style={{ borderColor: t.color || undefined }}>
+                        {t.name}
                       </Badge>
                     ))}
                   </div>
@@ -614,60 +704,31 @@ export default function MovieDetailPage() {
             </CardContent>
           </Card>
 
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Media</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {movie.backdrop_url && (
-                  <div>
-                    <span className="text-muted-foreground text-sm">Backdrop</span>
-                    <img src={movie.backdrop_url} alt="Backdrop" className="w-full h-32 object-cover rounded-lg mt-1" />
-                  </div>
-                )}
-                {movie.trailer_url && (
-                  <div>
-                    <span className="text-muted-foreground text-sm">Trailer</span>
-                    <a href={movie.trailer_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 mt-1">
-                      Watch Trailer <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
-                )}
-                {movie.stills && movie.stills.length > 0 && (
-                  <div>
-                    <span className="text-muted-foreground text-sm">Stills ({movie.stills.length})</span>
-                    <div className="grid grid-cols-3 gap-2 mt-1">
-                      {movie.stills.slice(0, 6).map((still, i) => (
-                        <img key={i} src={still.url} alt={still.caption || ''} className="w-full h-16 object-cover rounded" />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className="text-xs text-muted-foreground">
-                  <p>Created: {formatDate(movie.created_at)}</p>
-                  <p>Updated: {formatDate(movie.updated_at)}</p>
+          <Card>
+            <CardHeader>
+              <CardTitle>Media</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {movie.backdrop_url && (
+                <div>
+                  <span className="text-muted-foreground text-sm">Backdrop</span>
+                  <img src={movie.backdrop_url} alt="Backdrop" className="w-full h-32 object-cover rounded-lg mt-1" />
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Plots */}
-            {movie.plots && movie.plots.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Plots</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {movie.plots.map((p, i) => (
-                    <div key={i}>
-                      <Badge variant="outline" className="mb-1">{p.language?.name || p.language?.code}</Badge>
-                      <p className="text-sm text-muted-foreground line-clamp-3">{p.plot}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-          </div>
+              )}
+              {movie.trailer_url && (
+                <div>
+                  <span className="text-muted-foreground text-sm">Trailer</span>
+                  <a href={movie.trailer_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 mt-1">
+                    Watch Trailer <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              )}
+              <div className="text-xs text-muted-foreground">
+                <p>Created: {formatDate(movie.created_at)}</p>
+                <p>Updated: {formatDate(movie.updated_at)}</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -679,9 +740,9 @@ export default function MovieDetailPage() {
               <CardTitle>Directors</CardTitle>
             </CardHeader>
             <CardContent>
-              {movie.directors && movie.directors.length > 0 ? (
+              {directors.length > 0 ? (
                 <div className="space-y-2">
-                  {movie.directors.map((d, i) => (
+                  {directors.map((d, i) => (
                     <div key={i} className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-muted-foreground" />
                       <span>{d.person?.name}</span>
@@ -699,9 +760,9 @@ export default function MovieDetailPage() {
               <CardTitle>Screenplay</CardTitle>
             </CardHeader>
             <CardContent>
-              {movie.screenplay && movie.screenplay.length > 0 ? (
+              {screenplayWriters.length > 0 ? (
                 <div className="space-y-2">
-                  {movie.screenplay.map((s, i) => (
+                  {screenplayWriters.map((s, i) => (
                     <div key={i} className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-muted-foreground" />
                       <span>{s.person?.name}</span>
@@ -719,9 +780,9 @@ export default function MovieDetailPage() {
               <CardTitle>Music</CardTitle>
             </CardHeader>
             <CardContent>
-              {movie.music && movie.music.length > 0 ? (
+              {composers.length > 0 ? (
                 <div className="space-y-2">
-                  {movie.music.map((m, i) => (
+                  {composers.map((m, i) => (
                     <div key={i} className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-muted-foreground" />
                       <span>{m.person?.name}</span>
@@ -739,7 +800,7 @@ export default function MovieDetailPage() {
               <CardTitle>Cast</CardTitle>
             </CardHeader>
             <CardContent>
-              {movie.cast && movie.cast.length > 0 ? (
+              {cast.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -748,14 +809,12 @@ export default function MovieDetailPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {movie.cast
-                      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-                      .map((c, i) => (
-                        <TableRow key={i}>
-                          <TableCell className="font-medium">{c.person?.name}</TableCell>
-                          <TableCell className="text-muted-foreground">{c.character_name || '-'}</TableCell>
-                        </TableRow>
-                      ))}
+                    {cast.map((c, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-medium">{c.person?.name}</TableCell>
+                        <TableCell className="text-muted-foreground">{c.character_name || '-'}</TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               ) : (
@@ -766,13 +825,13 @@ export default function MovieDetailPage() {
         </div>
       )}
 
-      {/* Releases Tab (L1 - Country-based) */}
+      {/* Releases Tab (L1) */}
       {activeTab === 'releases' && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>Country Releases (L1)</CardTitle>
-              <CardDescription>Country-specific release info, age ratings, and sync voices</CardDescription>
+              <CardDescription>Country-specific release info, age ratings</CardDescription>
             </div>
             {canEdit && (
               <Button onClick={() => openL1Dialog()}>
@@ -785,7 +844,7 @@ export default function MovieDetailPage() {
             {releases.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Globe className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                No country releases yet
+                No country releases yet. Add releases to specify country-specific information.
               </div>
             ) : (
               <div className="space-y-4">
@@ -795,7 +854,7 @@ export default function MovieDetailPage() {
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
                           <Badge variant="default" className="text-lg px-3 py-1">
-                            {l1.country?.code}
+                            {l1.country?.code || l1.language?.code || '?'}
                           </Badge>
                           <div>
                             <h3 className="font-semibold">{l1.title}</h3>
@@ -843,19 +902,8 @@ export default function MovieDetailPage() {
                           <Badge variant="secondary">{l1.age_rating.code}</Badge>
                         )}
                       </div>
-                      {l1.sync_voices && l1.sync_voices.length > 0 && (
-                        <div className="mt-3 pt-3 border-t">
-                          <span className="text-sm text-muted-foreground flex items-center gap-1 mb-2">
-                            <Mic className="h-4 w-4" /> Sync Voices
-                          </span>
-                          <div className="flex flex-wrap gap-2">
-                            {l1.sync_voices.map((sv, i) => (
-                              <Badge key={i} variant="outline">
-                                {sv.person?.name} {sv.role_description && `(${sv.role_description})`}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
+                      {l1.plot && (
+                        <p className="mt-3 text-sm text-muted-foreground line-clamp-2">{l1.plot}</p>
                       )}
                     </CardContent>
                   </Card>
@@ -866,15 +914,15 @@ export default function MovieDetailPage() {
         </Card>
       )}
 
-      {/* Editions Tab (L2 - Linked to L1) */}
+      {/* Editions Tab (L2) */}
       {activeTab === 'editions' && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>Editions (L2)</CardTitle>
-              <CardDescription>Format, audio, and subtitle variants linked to country releases</CardDescription>
+              <CardDescription>Format, audio, and subtitle variants</CardDescription>
             </div>
-            {canEdit && releases.length > 0 && (
+            {canEdit && (
               <Button onClick={() => openL2Dialog()}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Edition
@@ -882,15 +930,10 @@ export default function MovieDetailPage() {
             )}
           </CardHeader>
           <CardContent>
-            {releases.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                Add a country release first before adding editions
-              </div>
-            ) : editions.length === 0 ? (
+            {editions.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Clapperboard className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                No editions yet
+                No editions yet. Add editions to specify format, audio, and subtitle variants.
               </div>
             ) : (
               <Table>
@@ -934,11 +977,13 @@ export default function MovieDetailPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          {l2.subtitles && l2.subtitles.length > 0 ? (
-                            l2.subtitles.map((s, i) => (
-                              <Badge key={i} variant="outline">{s.language.code.toUpperCase()}</Badge>
-                            ))
-                          ) : '-'}
+                          {l2.subtitle_language && (
+                            <Badge variant="outline">{l2.subtitle_language.code.toUpperCase()}</Badge>
+                          )}
+                          {l2.subtitle_language_2 && (
+                            <Badge variant="outline">{l2.subtitle_language_2.code.toUpperCase()}</Badge>
+                          )}
+                          {!l2.subtitle_language && !l2.subtitle_language_2 && '-'}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -978,7 +1023,7 @@ export default function MovieDetailPage() {
         </Card>
       )}
 
-      {/* L1 Dialog (Country Release) */}
+      {/* L1 Dialog */}
       <Dialog open={l1DialogOpen} onOpenChange={setL1DialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -1010,7 +1055,7 @@ export default function MovieDetailPage() {
                   disabled={!!editingL1}
                 >
                   <option value="">Select country</option>
-                  {countries
+                  {allCountries
                     .filter(c => ['LU', 'DE', 'FR', 'BE'].includes(c.code))
                     .map(country => (
                       <option key={country.id} value={country.id}>{country.name} ({country.code})</option>
@@ -1083,12 +1128,12 @@ export default function MovieDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* L2 Dialog (Edition linked to L1) */}
+      {/* L2 Dialog */}
       <Dialog open={l2DialogOpen} onOpenChange={setL2DialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>{editingL2 ? 'Edit' : 'Add'} Edition</DialogTitle>
-            <DialogDescription>Format and language variant linked to a country release</DialogDescription>
+            <DialogDescription>Format and language variant</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleL2Submit}>
             <div className="space-y-4 py-4">
@@ -1105,22 +1150,23 @@ export default function MovieDetailPage() {
                 </Alert>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="movie_l1_id">Country Release *</Label>
-                <Select
-                  id="movie_l1_id"
-                  value={l2Form.movie_l1_id}
-                  onChange={(e) => setL2Form({ ...l2Form, movie_l1_id: e.target.value })}
-                  required
-                >
-                  <option value="">Select release</option>
-                  {releases.map(r => (
-                    <option key={r.id} value={r.id}>
-                      {r.country?.code} - {r.title}
-                    </option>
-                  ))}
-                </Select>
-              </div>
+              {releases.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="movie_l1_id">Country Release</Label>
+                  <Select
+                    id="movie_l1_id"
+                    value={l2Form.movie_l1_id}
+                    onChange={(e) => setL2Form({ ...l2Form, movie_l1_id: e.target.value })}
+                  >
+                    <option value="">Select release (optional)</option>
+                    {releases.map(r => (
+                      <option key={r.id} value={r.id}>
+                        {r.country?.code || r.language?.code || '?'} - {r.title}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="edition_title">Edition Title</Label>
@@ -1128,7 +1174,7 @@ export default function MovieDetailPage() {
                   id="edition_title"
                   value={l2Form.edition_title}
                   onChange={(e) => setL2Form({ ...l2Form, edition_title: e.target.value })}
-                  placeholder="e.g., IMAX 3D Version, Director's Cut"
+                  placeholder="e.g., IMAX 3D Version"
                 />
               </div>
 
@@ -1175,32 +1221,32 @@ export default function MovieDetailPage() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Subtitles</Label>
-                <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded p-2">
-                  {languages.map(lang => (
-                    <label key={lang.id} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={l2Form.subtitle_language_ids.includes(lang.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setL2Form({
-                              ...l2Form,
-                              subtitle_language_ids: [...l2Form.subtitle_language_ids, lang.id]
-                            });
-                          } else {
-                            setL2Form({
-                              ...l2Form,
-                              subtitle_language_ids: l2Form.subtitle_language_ids.filter(id => id !== lang.id)
-                            });
-                          }
-                        }}
-                        className="h-4 w-4 rounded border-slate-300"
-                      />
-                      {lang.name} ({lang.code})
-                    </label>
-                  ))}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="subtitle_language_id">Subtitle 1</Label>
+                  <Select
+                    id="subtitle_language_id"
+                    value={l2Form.subtitle_language_id}
+                    onChange={(e) => setL2Form({ ...l2Form, subtitle_language_id: e.target.value })}
+                  >
+                    <option value="">None</option>
+                    {languages.map(lang => (
+                      <option key={lang.id} value={lang.id}>{lang.name} ({lang.code})</option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="subtitle_language_2_id">Subtitle 2</Label>
+                  <Select
+                    id="subtitle_language_2_id"
+                    value={l2Form.subtitle_language_2_id}
+                    onChange={(e) => setL2Form({ ...l2Form, subtitle_language_2_id: e.target.value })}
+                  >
+                    <option value="">None</option>
+                    {languages.map(lang => (
+                      <option key={lang.id} value={lang.id}>{lang.name} ({lang.code})</option>
+                    ))}
+                  </Select>
                 </div>
               </div>
 
@@ -1250,15 +1296,32 @@ export default function MovieDetailPage() {
           <DialogHeader>
             <DialogTitle>Delete {deleteType === 'l1' ? 'Country Release' : 'Edition'}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this {deleteType === 'l1' ? 'country release' : 'edition'}?
-              {deleteType === 'l1' && ' This will also delete all linked editions.'}
-              This action cannot be undone.
+              Are you sure you want to delete this {deleteType === 'l1' ? 'country release' : 'edition'}? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
             <Button variant="destructive" onClick={handleDelete} disabled={formLoading}>
               {formLoading ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Verify Confirmation */}
+      <Dialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Verify Movie</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to verify "{movie.original_title}"? This will mark the movie as verified and change its status to "verified".
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVerifyDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleVerify} disabled={formLoading}>
+              <ShieldCheck className="h-4 w-4 mr-2" />
+              {formLoading ? 'Verifying...' : 'Verify Movie'}
             </Button>
           </DialogFooter>
         </DialogContent>

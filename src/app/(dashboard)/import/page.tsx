@@ -160,7 +160,14 @@ export default function ImportPage() {
       .order('name');
 
     if (data) {
-      setCinemas(data as Cinema[]);
+      // Transform cinema_group from array to single object
+      const transformedCinemas = data.map((cinema: any) => ({
+        ...cinema,
+        cinema_group: Array.isArray(cinema.cinema_group)
+          ? cinema.cinema_group[0]
+          : cinema.cinema_group,
+      }));
+      setCinemas(transformedCinemas);
     }
   }
 

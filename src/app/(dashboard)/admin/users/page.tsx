@@ -156,63 +156,32 @@ export default function UsersPage() {
         throw new Error('Password must be at least 6 characters');
       }
 
-      console.log('[User Create] Attempting signup for:', email);
+      console.log('[User Create] Calling admin API for:', email);
 
-      // Create user via Supabase Auth Admin API (requires service role)
-      // For now, we'll use the signUp method and then update the profile
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: formData.full_name,
-          },
+      // Create user via server-side Admin API
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          email,
+          password,
+          full_name: formData.full_name,
+          role: formData.role,
+          phone: formData.phone,
+        }),
       });
 
-      console.log('[User Create] Signup result:', {
-        hasUser: !!authData?.user,
-        hasSession: !!authData?.session,
-        error: authError?.message,
-        errorCode: authError?.status,
-      });
+      const result = await response.json();
 
-      if (authError) {
-        console.error('[User Create] Auth error:', authError.message, authError);
-        // Show the actual Supabase error with helpful context
-        if (authError.message.includes('already registered') || authError.message.includes('already been registered')) {
-          throw new Error('A user with this email already exists');
-        } else if (authError.message.includes('Password should be at least')) {
-          throw new Error('Password must be at least 6 characters');
-        } else if (authError.message.includes('Unable to validate email')) {
-          throw new Error('Unable to validate email address. Check your Supabase email settings.');
-        } else if (authError.message.includes('Signups not allowed')) {
-          throw new Error('User signups are disabled. Enable them in Supabase Dashboard > Authentication > Providers > Email.');
-        } else if (authError.message.includes('invalid') && authError.message.toLowerCase().includes('email')) {
-          throw new Error(`Supabase rejected the email: "${email}". Check Supabase Dashboard > Authentication > Email Templates and Providers settings.`);
-        }
-        // For any other error, show the actual message with context
-        throw new Error(`Supabase Auth error: ${authError.message}`);
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create user');
       }
 
-      // Wait a bit for the trigger to create the profile
-      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log('[User Create] User created successfully:', result.user?.id);
 
-      // Update the profile with additional data
-      if (authData.user) {
-        const { error: updateError } = await supabase
-          .from('user_profiles')
-          .update({
-            full_name: formData.full_name,
-            role: formData.role,
-            phone: formData.phone,
-          })
-          .eq('id', authData.user.id);
-
-        if (updateError) throw updateError;
-      }
-
-      setFormSuccess('User created successfully. They will receive an email to confirm their account.');
+      setFormSuccess('User created successfully. They can now log in with their credentials.');
       fetchUsers();
 
       // Reset form

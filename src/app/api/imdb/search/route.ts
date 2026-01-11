@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
         'Accept': 'application/json',
         'User-Agent': 'CAT-Cinema-Automation-Tool/1.0',
       },
-      signal: AbortSignal.timeout(8000),
+      // Don't use AbortSignal.timeout - not reliably supported in all serverless environments
     });
 
     const elapsed = Date.now() - startTime;

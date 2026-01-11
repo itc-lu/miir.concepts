@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useUser } from '@/contexts/user-context';
 import { Button } from '@/components/ui/button';
@@ -33,13 +33,13 @@ import {
   AlertCircle,
   Loader2,
   Film,
-  Calendar,
-  Clock,
   History,
-  ChevronRight,
   RefreshCw,
   Building2,
   Users,
+  Link2,
+  Search,
+  Eye,
 } from 'lucide-react';
 
 interface CinemaGroup {
@@ -62,7 +62,32 @@ interface DetectedSheet {
   rowCount: number;
   dateRange: { start: string; end: string } | null;
   sampleData: string[];
-  cinemaId?: string; // User-assigned cinema for this sheet
+  cinemaId?: string;
+}
+
+interface CellData {
+  value: string;
+  type: 'header' | 'movie' | 'time' | 'data' | 'empty';
+  row: number;
+  col: number;
+}
+
+interface RowData {
+  cells: CellData[];
+  rowType: 'header' | 'data' | 'empty';
+  movieName?: string;
+  times?: { weekday: string; times: string[] }[];
+}
+
+interface SheetPreview {
+  index: number;
+  name: string;
+  headers: string[];
+  rows: RowData[];
+  dateRange: { start: string; end: string } | null;
+  detectedWeekdays: string[];
+  filmColumnIndex: number;
+  weekdayColumnStart: number;
 }
 
 interface ParsedFilm {
@@ -83,6 +108,9 @@ interface ParsedFilm {
     time: string;
     datetime: string;
   }>;
+  mappedMovieId?: string;
+  mappedMovieName?: string;
+  isNewMapping?: boolean;
 }
 
 interface ParseResult {
@@ -110,22 +138,23 @@ interface ParseResult {
   warnings: string[];
 }
 
-interface Conflict {
+interface ImportMapping {
   id: string;
   import_title: string;
-  movie_name: string;
-  director: string | null;
-  year_of_production: number | null;
-  state: 'to_verify' | 'verified' | 'processed' | 'skipped';
-  matched_movie?: {
+  movie_l0_id: string | null;
+  movie_l0?: {
     id: string;
     original_title: string;
     poster_url: string | null;
-  } | null;
-  cinema?: { id: string; name: string };
-  editions?: any[];
-  sessions?: any[];
-  created_at: string;
+  };
+}
+
+interface MovieSearchResult {
+  id: string;
+  original_title: string;
+  production_year: number | null;
+  poster_url: string | null;
+  imdb_id: string | null;
 }
 
 interface ImportJob {
@@ -144,13 +173,12 @@ interface ImportJob {
   user?: { email: string; first_name: string | null; last_name: string | null };
   cinema?: { id: string; name: string };
   cinema_group?: { id: string; name: string };
-  parser?: { id: string; name: string };
 }
 
 type SelectionMode = 'cinema' | 'cinema_group';
 
 export default function ImportPage() {
-  const { hasPermission } = useUser();
+  const { } = useUser();
   const supabase = createClient();
 
   const [activeTab, setActiveTab] = useState('upload');
@@ -168,11 +196,19 @@ export default function ImportPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Conflicts state
-  const [conflicts, setConflicts] = useState<Conflict[]>([]);
-  const [conflictsLoading, setConflictsLoading] = useState(false);
-  const [selectedConflict, setSelectedConflict] = useState<Conflict | null>(null);
-  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  // Preview state
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [sheetPreviews, setSheetPreviews] = useState<SheetPreview[]>([]);
+  const [activePreviewSheet, setActivePreviewSheet] = useState(0);
+
+  // Movie linking state
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [linkingFilm, setLinkingFilm] = useState<{ sheetIndex: number; filmIndex: number; film: ParsedFilm } | null>(null);
+  const [movieSearch, setMovieSearch] = useState('');
+  const [movieSearchResults, setMovieSearchResults] = useState<MovieSearchResult[]>([]);
+  const [movieSearchLoading, setMovieSearchLoading] = useState(false);
+  const [mappings, setMappings] = useState<Map<string, ImportMapping>>(new Map());
 
   // Import history state
   const [importHistory, setImportHistory] = useState<ImportJob[]>([]);
@@ -184,14 +220,19 @@ export default function ImportPage() {
     fetchCinemaGroups();
   }, []);
 
-  // Fetch conflicts when switching to conflicts tab
+  // Fetch history when switching to history tab
   useEffect(() => {
-    if (activeTab === 'conflicts') {
-      fetchConflicts();
-    } else if (activeTab === 'history') {
+    if (activeTab === 'history') {
       fetchImportHistory();
     }
   }, [activeTab]);
+
+  // Load mappings when cinema group changes
+  useEffect(() => {
+    if (selectedCinemaGroupId) {
+      loadMappings(selectedCinemaGroupId);
+    }
+  }, [selectedCinemaGroupId]);
 
   async function fetchCinemaGroups() {
     const { data } = await supabase
@@ -229,18 +270,19 @@ export default function ImportPage() {
     }
   }
 
-  async function fetchConflicts() {
-    setConflictsLoading(true);
+  async function loadMappings(cinemaGroupId: string) {
     try {
-      const response = await fetch(`/api/import/conflicts?state=to_verify&limit=100`);
+      const response = await fetch(`/api/import/mappings?cinema_group_id=${cinemaGroupId}`);
       const data = await response.json();
-      if (data.conflicts) {
-        setConflicts(data.conflicts);
+      if (data.mappings) {
+        const mappingMap = new Map<string, ImportMapping>();
+        data.mappings.forEach((m: ImportMapping) => {
+          mappingMap.set(m.import_title.toLowerCase(), m);
+        });
+        setMappings(mappingMap);
       }
     } catch (err) {
-      console.error('Failed to fetch conflicts:', err);
-    } finally {
-      setConflictsLoading(false);
+      console.error('Failed to load mappings:', err);
     }
   }
 
@@ -265,9 +307,9 @@ export default function ImportPage() {
       setFile(selectedFile);
       setParseResult(null);
       setDetectedSheets([]);
+      setSheetPreviews([]);
       setError(null);
 
-      // If in cinema group mode, detect sheets
       if (selectionMode === 'cinema_group' && selectedCinemaGroupId) {
         await detectSheets(selectedFile);
       }
@@ -293,7 +335,6 @@ export default function ImportPage() {
         throw new Error(data.error || 'Failed to detect sheets');
       }
 
-      // Initialize sheets with empty cinema selection
       const sheetsWithCinema: DetectedSheet[] = data.sheets.map((sheet: any) => ({
         ...sheet,
         cinemaId: '',
@@ -315,13 +356,42 @@ export default function ImportPage() {
     );
   };
 
+  const loadPreview = async () => {
+    if (!file) return;
+
+    setPreviewLoading(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/import/preview', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load preview');
+      }
+
+      setSheetPreviews(data.previews);
+      setShowPreview(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load preview');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   const handleParse = async () => {
     if (!file) {
       setError('Please upload a file');
       return;
     }
 
-    // Validation based on mode
     if (selectionMode === 'cinema') {
       if (!selectedCinemaId) {
         setError('Please select a cinema');
@@ -333,7 +403,6 @@ export default function ImportPage() {
         return;
       }
 
-      // Check if all sheets have cinemas assigned
       const unmappedSheets = detectedSheets.filter(s => !s.cinemaId);
       if (unmappedSheets.length > 0) {
         setError('Please assign a cinema to all sheets');
@@ -376,11 +445,138 @@ export default function ImportPage() {
         throw new Error(data.error || 'Failed to parse file');
       }
 
-      setParseResult(data);
+      const resultWithMappings = applyMappingsToResult(data);
+      setParseResult(resultWithMappings);
     } catch (err: any) {
       setError(err.message || 'Failed to parse file');
     } finally {
       setParsing(false);
+    }
+  };
+
+  const applyMappingsToResult = (result: ParseResult): ParseResult => {
+    return {
+      ...result,
+      sheets: result.sheets.map(sheet => ({
+        ...sheet,
+        films: sheet.films.map(film => {
+          const mapping = mappings.get(film.importTitle.toLowerCase());
+          if (mapping && mapping.movie_l0) {
+            return {
+              ...film,
+              mappedMovieId: mapping.movie_l0.id,
+              mappedMovieName: mapping.movie_l0.original_title,
+            };
+          }
+          return film;
+        }),
+      })),
+    };
+  };
+
+  const searchMovies = async (query: string) => {
+    if (query.length < 2) {
+      setMovieSearchResults([]);
+      return;
+    }
+
+    setMovieSearchLoading(true);
+    try {
+      const { data } = await supabase
+        .from('movies_l0')
+        .select('id, original_title, production_year, poster_url, imdb_id')
+        .or(`original_title.ilike.%${query}%,imdb_id.ilike.%${query}%`)
+        .limit(10);
+
+      if (data) {
+        setMovieSearchResults(data);
+      }
+    } catch (err) {
+      console.error('Movie search error:', err);
+    } finally {
+      setMovieSearchLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (movieSearch) {
+        searchMovies(movieSearch);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [movieSearch]);
+
+  const linkFilmToMovie = async (movie: MovieSearchResult) => {
+    if (!linkingFilm || !parseResult) return;
+
+    const cinemaGroupId = selectionMode === 'cinema'
+      ? (selectedCinema?.cinema_group_id || '')
+      : selectedCinemaGroupId;
+
+    if (!cinemaGroupId) {
+      setError('Could not determine cinema group');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/import/mappings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cinema_group_id: cinemaGroupId,
+          import_title: linkingFilm.film.importTitle,
+          movie_l0_id: movie.id,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create mapping');
+      }
+
+      const updatedSheets = parseResult.sheets.map((sheet, sheetIdx) => {
+        if (sheetIdx === linkingFilm.sheetIndex) {
+          return {
+            ...sheet,
+            films: sheet.films.map((film, filmIdx) => {
+              if (filmIdx === linkingFilm.filmIndex) {
+                return {
+                  ...film,
+                  mappedMovieId: movie.id,
+                  mappedMovieName: movie.original_title,
+                  isNewMapping: true,
+                };
+              }
+              return film;
+            }),
+          };
+        }
+        return sheet;
+      });
+
+      setParseResult({ ...parseResult, sheets: updatedSheets });
+
+      setMappings(prev => {
+        const updated = new Map(prev);
+        updated.set(linkingFilm.film.importTitle.toLowerCase(), {
+          id: '',
+          import_title: linkingFilm.film.importTitle,
+          movie_l0_id: movie.id,
+          movie_l0: {
+            id: movie.id,
+            original_title: movie.original_title,
+            poster_url: movie.poster_url,
+          },
+        });
+        return updated;
+      });
+
+      setShowLinkDialog(false);
+      setLinkingFilm(null);
+      setMovieSearch('');
+      setMovieSearchResults([]);
+    } catch (err: any) {
+      setError(err.message || 'Failed to link movie');
     }
   };
 
@@ -417,9 +613,13 @@ export default function ImportPage() {
         throw new Error(data.error || 'Failed to import');
       }
 
-      setSuccess(`Import completed! Created ${data.summary.createdConflicts} items for review.`);
-      setActiveTab('conflicts');
-      fetchConflicts();
+      setSuccess(
+        `Import completed! Created ${data.summary.createdConflicts} movies and ${data.summary.createdSessions} sessions for review.`
+      );
+
+      setFile(null);
+      setParseResult(null);
+      setSheetPreviews([]);
     } catch (err: any) {
       setError(err.message || 'Failed to import');
     } finally {
@@ -427,58 +627,6 @@ export default function ImportPage() {
     }
   };
 
-  const handleVerifyConflict = async (conflictId: string) => {
-    try {
-      const response = await fetch('/api/import/conflicts', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          conflict_id: conflictId,
-          state: 'verified',
-        }),
-      });
-
-      if (response.ok) {
-        setConflicts(prev =>
-          prev.map(c => (c.id === conflictId ? { ...c, state: 'verified' as const } : c))
-        );
-      }
-    } catch (err) {
-      console.error('Failed to verify conflict:', err);
-    }
-  };
-
-  const handleProcessConflicts = async () => {
-    const verifiedIds = conflicts.filter(c => c.state === 'verified').map(c => c.id);
-    if (verifiedIds.length === 0) {
-      setError('No verified conflicts to process');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch('/api/import/conflicts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conflict_ids: verifiedIds }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess(`Processed ${data.results.processed} items. Created ${data.results.created_screenings} screenings.`);
-        fetchConflicts();
-      } else {
-        throw new Error(data.error);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Failed to process conflicts');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Get cinemas filtered by selected cinema group
   const filteredCinemas = selectedCinemaGroupId
     ? cinemas.filter(c => c.cinema_group_id === selectedCinemaGroupId)
     : cinemas;
@@ -494,9 +642,26 @@ export default function ImportPage() {
     ? !!file && !!selectedCinemaId && hasParser
     : !!file && !!selectedCinemaGroupId && hasParser && detectedSheets.every(s => !!s.cinemaId);
 
+  const getMappingStats = () => {
+    if (!parseResult) return { mapped: 0, unmapped: 0 };
+    let mapped = 0;
+    let unmapped = 0;
+    parseResult.sheets.forEach(sheet => {
+      sheet.films.forEach(film => {
+        if (film.mappedMovieId) {
+          mapped++;
+        } else {
+          unmapped++;
+        }
+      });
+    });
+    return { mapped, unmapped };
+  };
+
+  const mappingStats = getMappingStats();
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Import Schedules</h1>
         <p className="text-sm text-slate-500 mt-1">
@@ -504,7 +669,6 @@ export default function ImportPage() {
         </p>
       </div>
 
-      {/* Alerts */}
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -519,21 +683,11 @@ export default function ImportPage() {
         </Alert>
       )}
 
-      {/* Tabs */}
       <Tabs defaultValue="upload" value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="upload">
             <Upload className="h-4 w-4 mr-2" />
             Upload
-          </TabsTrigger>
-          <TabsTrigger value="conflicts">
-            <AlertCircle className="h-4 w-4 mr-2" />
-            Review Conflicts
-            {conflicts.filter(c => c.state === 'to_verify').length > 0 && (
-              <Badge variant="destructive" className="ml-2">
-                {conflicts.filter(c => c.state === 'to_verify').length}
-              </Badge>
-            )}
           </TabsTrigger>
           <TabsTrigger value="history">
             <History className="h-4 w-4 mr-2" />
@@ -541,7 +695,6 @@ export default function ImportPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Upload Tab */}
         <TabsContent value="upload" className="space-y-6">
           <Card>
             <CardHeader>
@@ -551,7 +704,6 @@ export default function ImportPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Selection Mode Toggle */}
               <div className="space-y-2">
                 <Label>Import Mode</Label>
                 <div className="flex gap-2">
@@ -583,7 +735,6 @@ export default function ImportPage() {
                 </div>
               </div>
 
-              {/* Single Cinema Mode */}
               {selectionMode === 'cinema' && (
                 <div className="space-y-2">
                   <Label htmlFor="cinema">Cinema</Label>
@@ -593,6 +744,10 @@ export default function ImportPage() {
                     onChange={(e) => {
                       setSelectedCinemaId(e.target.value);
                       setParseResult(null);
+                      const cinema = cinemas.find(c => c.id === e.target.value);
+                      if (cinema?.cinema_group_id) {
+                        setSelectedCinemaGroupId(cinema.cinema_group_id);
+                      }
                     }}
                     className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
                   >
@@ -613,7 +768,6 @@ export default function ImportPage() {
                 </div>
               )}
 
-              {/* Cinema Group Mode */}
               {selectionMode === 'cinema_group' && (
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -645,7 +799,6 @@ export default function ImportPage() {
                 </div>
               )}
 
-              {/* File Upload */}
               <div className="space-y-2">
                 <Label htmlFor="file">Schedule File</Label>
                 <div className="flex items-center gap-4">
@@ -658,13 +811,22 @@ export default function ImportPage() {
                   />
                 </div>
                 {file && (
-                  <p className="text-sm text-slate-500">
-                    Selected: {file.name} ({(file.size / 1024).toFixed(1)} KB)
-                  </p>
+                  <div className="flex items-center gap-4">
+                    <p className="text-sm text-slate-500">
+                      Selected: {file.name} ({(file.size / 1024).toFixed(1)} KB)
+                    </p>
+                    <Button variant="outline" size="sm" onClick={loadPreview} disabled={previewLoading}>
+                      {previewLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <Eye className="h-4 w-4 mr-2" />
+                      )}
+                      Preview Excel
+                    </Button>
+                  </div>
                 )}
               </div>
 
-              {/* Sheet Detection (Cinema Group Mode) */}
               {selectionMode === 'cinema_group' && detectingSheets && (
                 <div className="flex items-center gap-2 text-sm text-slate-500">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -720,7 +882,6 @@ export default function ImportPage() {
                 </div>
               )}
 
-              {/* Parse Button */}
               {file && (
                 <Button
                   onClick={handleParse}
@@ -742,7 +903,6 @@ export default function ImportPage() {
             </CardContent>
           </Card>
 
-          {/* Parse Results */}
           {parseResult && (
             <Card>
               <CardHeader>
@@ -761,8 +921,7 @@ export default function ImportPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Summary */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   <div className="bg-slate-50 rounded-lg p-4 text-center">
                     <div className="text-2xl font-bold text-slate-900">
                       {parseResult.summary.totalSheets}
@@ -779,11 +938,27 @@ export default function ImportPage() {
                     <div className="text-2xl font-bold text-slate-900">
                       {parseResult.summary.totalShowings}
                     </div>
-                    <div className="text-sm text-slate-500">Showings</div>
+                    <div className="text-sm text-slate-500">Sessions</div>
+                  </div>
+                  <div className="bg-slate-50 rounded-lg p-4 text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      {mappingStats.mapped}
+                    </div>
+                    <div className="text-sm text-slate-500">Linked</div>
                   </div>
                 </div>
 
-                {/* Errors */}
+                {mappingStats.unmapped > 0 && (
+                  <Alert>
+                    <Link2 className="h-4 w-4" />
+                    <AlertDescription>
+                      {mappingStats.unmapped} film(s) are not linked to existing movies.
+                      Click &quot;Link&quot; to associate them with movies in your database.
+                      This mapping will be remembered for future imports.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 {parseResult.errors.length > 0 && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
@@ -797,7 +972,6 @@ export default function ImportPage() {
                   </Alert>
                 )}
 
-                {/* Films Table per Sheet */}
                 {parseResult.sheets.map((sheet, sheetIndex) => (
                   <div key={sheetIndex} className="space-y-2">
                     <h3 className="font-medium flex items-center gap-2">
@@ -818,10 +992,11 @@ export default function ImportPage() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Film</TableHead>
+                            <TableHead>Linked To</TableHead>
                             <TableHead>Language</TableHead>
                             <TableHead>Duration</TableHead>
-                            <TableHead>Format</TableHead>
-                            <TableHead className="text-right">Showings</TableHead>
+                            <TableHead className="text-right">Sessions</TableHead>
+                            <TableHead></TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -830,13 +1005,25 @@ export default function ImportPage() {
                               <TableCell>
                                 <div>
                                   <div className="font-medium">{film.movieName}</div>
-                                  {film.director && (
-                                    <div className="text-xs text-slate-500">
-                                      {film.director}
-                                      {film.year && ` (${film.year})`}
-                                    </div>
+                                  {film.format && (
+                                    <Badge variant="outline" className="mt-1">
+                                      {film.format}
+                                    </Badge>
                                   )}
                                 </div>
+                              </TableCell>
+                              <TableCell>
+                                {film.mappedMovieName ? (
+                                  <div className="flex items-center gap-1 text-green-600">
+                                    <CheckCircle className="h-4 w-4" />
+                                    <span className="text-sm">{film.mappedMovieName}</span>
+                                    {film.isNewMapping && (
+                                      <Badge variant="secondary" className="text-xs">new</Badge>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-amber-600 text-sm">Not linked</span>
+                                )}
                               </TableCell>
                               <TableCell>
                                 {film.versionString || film.language || '-'}
@@ -844,16 +1031,22 @@ export default function ImportPage() {
                               <TableCell>
                                 {film.duration || (film.durationMinutes ? `${film.durationMinutes}'` : '-')}
                               </TableCell>
-                              <TableCell>
-                                {film.format || '-'}
-                                {film.ageRating && (
-                                  <Badge variant="outline" className="ml-1">
-                                    {film.ageRating}
-                                  </Badge>
-                                )}
-                              </TableCell>
                               <TableCell className="text-right">
                                 <Badge variant="secondary">{film.showingCount}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  size="sm"
+                                  variant={film.mappedMovieId ? 'ghost' : 'outline'}
+                                  onClick={() => {
+                                    setLinkingFilm({ sheetIndex, filmIndex, film });
+                                    setMovieSearch(film.movieName);
+                                    setShowLinkDialog(true);
+                                  }}
+                                >
+                                  <Link2 className="h-4 w-4 mr-1" />
+                                  {film.mappedMovieId ? 'Relink' : 'Link'}
+                                </Button>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -871,7 +1064,6 @@ export default function ImportPage() {
                   </div>
                 ))}
 
-                {/* Import Button */}
                 {parseResult.success && parseResult.summary.totalFilms > 0 && (
                   <div className="flex justify-end gap-4 pt-4 border-t">
                     <Button variant="outline" onClick={() => setParseResult(null)}>
@@ -886,7 +1078,7 @@ export default function ImportPage() {
                       ) : (
                         <>
                           <Upload className="h-4 w-4 mr-2" />
-                          Import {parseResult.summary.totalFilms} Films
+                          Import {parseResult.summary.totalFilms} Films ({parseResult.summary.totalShowings} Sessions)
                         </>
                       )}
                     </Button>
@@ -897,135 +1089,6 @@ export default function ImportPage() {
           )}
         </TabsContent>
 
-        {/* Conflicts Tab */}
-        <TabsContent value="conflicts" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Review Import Conflicts</CardTitle>
-                  <CardDescription>
-                    Review and verify imported movies before creating screenings
-                  </CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={fetchConflicts} disabled={conflictsLoading}>
-                    <RefreshCw className={`h-4 w-4 mr-2 ${conflictsLoading ? 'animate-spin' : ''}`} />
-                    Refresh
-                  </Button>
-                  <Button
-                    onClick={handleProcessConflicts}
-                    disabled={loading || conflicts.filter(c => c.state === 'verified').length === 0}
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Process Verified ({conflicts.filter(c => c.state === 'verified').length})
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {conflictsLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-                </div>
-              ) : conflicts.length === 0 ? (
-                <div className="text-center py-12">
-                  <Film className="h-12 w-12 mx-auto text-slate-300 mb-4" />
-                  <p className="text-slate-500">No conflicts to review</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Movie</TableHead>
-                      <TableHead>Cinema</TableHead>
-                      <TableHead>Matched To</TableHead>
-                      <TableHead>Sessions</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {conflicts.map(conflict => (
-                      <TableRow key={conflict.id}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{conflict.movie_name || conflict.import_title}</div>
-                            {conflict.director && (
-                              <div className="text-xs text-slate-500">
-                                {conflict.director}
-                                {conflict.year_of_production && ` (${conflict.year_of_production})`}
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>{conflict.cinema?.name || '-'}</TableCell>
-                        <TableCell>
-                          {conflict.matched_movie ? (
-                            <span className="text-green-600">{conflict.matched_movie.original_title}</span>
-                          ) : (
-                            <span className="text-amber-600">No match</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">
-                            {conflict.sessions?.length || 0} sessions
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              conflict.state === 'verified'
-                                ? 'default'
-                                : conflict.state === 'processed'
-                                ? 'outline'
-                                : 'secondary'
-                            }
-                          >
-                            {conflict.state}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            {conflict.state === 'to_verify' && (
-                              <Button
-                                size="sm"
-                                onClick={() => handleVerifyConflict(conflict.id)}
-                              >
-                                Verify
-                              </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setSelectedConflict(conflict);
-                                setConflictDialogOpen(true);
-                              }}
-                            >
-                              <ChevronRight className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* History Tab */}
         <TabsContent value="history" className="space-y-6">
           <Card>
             <CardHeader>
@@ -1133,90 +1196,160 @@ export default function ImportPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Conflict Detail Dialog */}
-      <Dialog open={conflictDialogOpen} onOpenChange={setConflictDialogOpen}>
-        <DialogContent className="max-w-2xl">
+      {/* Excel Preview Dialog */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>{selectedConflict?.movie_name || selectedConflict?.import_title}</DialogTitle>
+            <DialogTitle>Excel Preview</DialogTitle>
             <DialogDescription>
-              Import conflict details
+              Green = Movie titles | Blue = Session times
             </DialogDescription>
           </DialogHeader>
-          {selectedConflict && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-xs text-slate-500">Import Title</Label>
-                  <p className="text-sm">{selectedConflict.import_title}</p>
-                </div>
-                <div>
-                  <Label className="text-xs text-slate-500">Movie Name</Label>
-                  <p className="text-sm">{selectedConflict.movie_name || '-'}</p>
-                </div>
-                <div>
-                  <Label className="text-xs text-slate-500">Director</Label>
-                  <p className="text-sm">{selectedConflict.director || '-'}</p>
-                </div>
-                <div>
-                  <Label className="text-xs text-slate-500">Year</Label>
-                  <p className="text-sm">{selectedConflict.year_of_production || '-'}</p>
-                </div>
-              </div>
 
-              {selectedConflict.editions && selectedConflict.editions.length > 0 && (
-                <div>
-                  <Label className="text-xs text-slate-500">Editions</Label>
-                  <div className="space-y-2 mt-1">
-                    {selectedConflict.editions.map((edition: any, i: number) => (
-                      <div key={i} className="bg-slate-50 rounded p-2 text-sm">
-                        <div className="font-medium">{edition.full_title || edition.title}</div>
-                        <div className="text-xs text-slate-500">
-                          {[edition.language_code, edition.duration_text, edition.version_string]
-                            .filter(Boolean)
-                            .join(' | ')}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+          {sheetPreviews.length > 1 && (
+            <div className="flex gap-2 border-b pb-2">
+              {sheetPreviews.map((sheet, idx) => (
+                <Button
+                  key={idx}
+                  variant={activePreviewSheet === idx ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setActivePreviewSheet(idx)}
+                >
+                  {sheet.name}
+                </Button>
+              ))}
+            </div>
+          )}
 
-              {selectedConflict.sessions && selectedConflict.sessions.length > 0 && (
-                <div>
-                  <Label className="text-xs text-slate-500">
-                    Sessions ({selectedConflict.sessions.length})
-                  </Label>
-                  <div className="max-h-40 overflow-y-auto mt-1">
-                    <div className="flex flex-wrap gap-1">
-                      {selectedConflict.sessions.map((session: any, i: number) => (
-                        <Badge key={i} variant="outline" className="text-xs">
-                          {new Date(session.screening_datetime).toLocaleDateString()}{' '}
-                          {new Date(session.screening_datetime).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </Badge>
+          {sheetPreviews[activePreviewSheet] && (
+            <div className="flex-1 overflow-auto border rounded">
+              <table className="text-xs border-collapse w-full">
+                <tbody>
+                  {sheetPreviews[activePreviewSheet].rows.slice(0, 50).map((row, rowIdx) => (
+                    <tr key={rowIdx} className={row.rowType === 'header' ? 'bg-slate-100 font-bold sticky top-0' : ''}>
+                      {row.cells.slice(0, 15).map((cell, colIdx) => (
+                        <td
+                          key={colIdx}
+                          className={`border px-2 py-1 min-w-[80px] max-w-[200px] truncate ${
+                            cell.type === 'movie' ? 'bg-green-50 text-green-800 font-medium' :
+                            cell.type === 'time' ? 'bg-blue-50 text-blue-800' :
+                            cell.type === 'header' ? 'bg-slate-200' :
+                            cell.type === 'empty' ? 'bg-slate-50' : ''
+                          }`}
+                          title={cell.value}
+                        >
+                          {cell.value || '\u00A0'}
+                        </td>
                       ))}
-                    </div>
-                  </div>
-                </div>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {sheetPreviews[activePreviewSheet] && (
+            <div className="text-sm text-slate-500 border-t pt-2">
+              {sheetPreviews[activePreviewSheet].dateRange && (
+                <span className="mr-4">
+                  Date Range: {sheetPreviews[activePreviewSheet].dateRange?.start} to {sheetPreviews[activePreviewSheet].dateRange?.end}
+                </span>
+              )}
+              {sheetPreviews[activePreviewSheet].detectedWeekdays.length > 0 && (
+                <span>
+                  Detected weekdays: {sheetPreviews[activePreviewSheet].detectedWeekdays.join(', ')}
+                </span>
               )}
             </div>
           )}
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConflictDialogOpen(false)}>
-              Close
+            <Button onClick={() => setShowPreview(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Movie Link Dialog */}
+      <Dialog open={showLinkDialog} onOpenChange={(open) => {
+        setShowLinkDialog(open);
+        if (!open) {
+          setLinkingFilm(null);
+          setMovieSearch('');
+          setMovieSearchResults([]);
+        }
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Link to Movie</DialogTitle>
+            <DialogDescription>
+              Link &quot;{linkingFilm?.film.importTitle}&quot; to an existing movie.
+              This mapping will be saved for future imports.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by movie title or IMDB ID..."
+                value={movieSearch}
+                onChange={(e) => setMovieSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            <div className="border rounded-lg max-h-[300px] overflow-y-auto">
+              {movieSearchLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                </div>
+              ) : movieSearchResults.length === 0 ? (
+                <div className="text-center py-8 text-slate-500">
+                  {movieSearch.length < 2
+                    ? 'Type at least 2 characters to search'
+                    : 'No movies found'}
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {movieSearchResults.map(movie => (
+                    <div
+                      key={movie.id}
+                      className="flex items-center gap-4 p-3 hover:bg-slate-50 cursor-pointer"
+                      onClick={() => linkFilmToMovie(movie)}
+                    >
+                      {movie.poster_url ? (
+                        <img
+                          src={movie.poster_url}
+                          alt=""
+                          className="w-12 h-16 object-cover rounded"
+                        />
+                      ) : (
+                        <div className="w-12 h-16 bg-slate-200 rounded flex items-center justify-center">
+                          <Film className="h-6 w-6 text-slate-400" />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <div className="font-medium">{movie.original_title}</div>
+                        <div className="text-sm text-slate-500">
+                          {movie.production_year && `(${movie.production_year})`}
+                          {movie.imdb_id && ` • ${movie.imdb_id}`}
+                        </div>
+                      </div>
+                      <Button size="sm" variant="ghost">
+                        <Link2 className="h-4 w-4 mr-1" />
+                        Select
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLinkDialog(false)}>
+              Cancel
             </Button>
-            {selectedConflict?.state === 'to_verify' && (
-              <Button
-                onClick={() => {
-                  handleVerifyConflict(selectedConflict.id);
-                  setConflictDialogOpen(false);
-                }}
-              >
-                Verify
-              </Button>
-            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

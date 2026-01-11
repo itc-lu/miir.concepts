@@ -96,10 +96,12 @@ export abstract class BaseParser {
 
   /**
    * Main entry point - parse an Excel file
+   * @param specificSheetIndex - If provided, only parse the sheet at this index
    */
   async parseFile(
     file: Buffer | ArrayBuffer,
-    context: ParserContext
+    context: ParserContext,
+    specificSheetIndex?: number
   ): Promise<ParserResult> {
     const result: ParserResult = {
       success: false,
@@ -117,8 +119,18 @@ export abstract class BaseParser {
         return result;
       }
 
-      // Parse each sheet
-      for (const sheetName of workbook.SheetNames) {
+      // Determine which sheets to parse
+      const sheetsToParse = specificSheetIndex !== undefined
+        ? [{ index: specificSheetIndex, name: workbook.SheetNames[specificSheetIndex] }]
+        : workbook.SheetNames.map((name, index) => ({ index, name }));
+
+      // Parse requested sheets
+      for (const { index, name: sheetName } of sheetsToParse) {
+        if (!sheetName) {
+          result.errors.push(`Sheet index ${index} does not exist`);
+          continue;
+        }
+
         try {
           const sheet = workbook.Sheets[sheetName];
           const sheetResult = await this.parseSheet(sheet, sheetName, context);

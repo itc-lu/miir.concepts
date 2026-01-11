@@ -67,27 +67,27 @@ interface DetectedSheet {
 
 interface CellData {
   value: string;
-  type: 'header' | 'movie' | 'time' | 'data' | 'empty';
+  type: 'header' | 'movie' | 'time' | 'date-range' | 'data' | 'empty';
   row: number;
   col: number;
 }
 
-interface RowData {
-  cells: CellData[];
-  rowType: 'header' | 'data' | 'empty';
-  movieName?: string;
-  times?: { weekday: string; times: string[] }[];
+interface MovieRow {
+  filmName: string;
+  importTitle: string;
+  times: { weekday: string; date: string; times: string[] }[];
 }
 
 interface SheetPreview {
   index: number;
   name: string;
-  headers: string[];
-  rows: RowData[];
-  dateRange: { start: string; end: string } | null;
+  rawCells: CellData[][];
+  dateRange: { start: string; end: string; text: string } | null;
+  extractedDates: { weekday: string; date: string }[];
   detectedWeekdays: string[];
+  movies: MovieRow[];
+  headerRowIndex: number;
   filmColumnIndex: number;
-  weekdayColumnStart: number;
 }
 
 interface ParsedFilm {
@@ -1202,7 +1202,7 @@ export default function ImportPage() {
           <DialogHeader>
             <DialogTitle>Excel Preview</DialogTitle>
             <DialogDescription>
-              Green = Movie titles | Blue = Session times
+              Detected {sheetPreviews[activePreviewSheet]?.movies?.length || 0} movies with sessions
             </DialogDescription>
           </DialogHeader>
 
@@ -1222,45 +1222,105 @@ export default function ImportPage() {
           )}
 
           {sheetPreviews[activePreviewSheet] && (
-            <div className="flex-1 overflow-auto border rounded">
-              <table className="text-xs border-collapse w-full">
-                <tbody>
-                  {sheetPreviews[activePreviewSheet].rows.slice(0, 50).map((row, rowIdx) => (
-                    <tr key={rowIdx} className={row.rowType === 'header' ? 'bg-slate-100 font-bold sticky top-0' : ''}>
-                      {row.cells.slice(0, 15).map((cell, colIdx) => (
-                        <td
-                          key={colIdx}
-                          className={`border px-2 py-1 min-w-[80px] max-w-[200px] truncate ${
-                            cell.type === 'movie' ? 'bg-green-50 text-green-800 font-medium' :
-                            cell.type === 'time' ? 'bg-blue-50 text-blue-800' :
-                            cell.type === 'header' ? 'bg-slate-200' :
-                            cell.type === 'empty' ? 'bg-slate-50' : ''
-                          }`}
-                          title={cell.value}
-                        >
-                          {cell.value || '\u00A0'}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+            <>
+              {/* Detection Summary */}
+              <div className="grid grid-cols-3 gap-4 p-3 bg-slate-50 rounded-lg text-sm">
+                <div>
+                  <span className="text-slate-500">Date Range:</span>
+                  <span className="ml-2 font-medium">
+                    {sheetPreviews[activePreviewSheet].dateRange
+                      ? `${sheetPreviews[activePreviewSheet].dateRange.start} to ${sheetPreviews[activePreviewSheet].dateRange.end}`
+                      : 'Not detected'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Days:</span>
+                  <span className="ml-2 font-medium">
+                    {sheetPreviews[activePreviewSheet].detectedWeekdays.join(', ') || 'None'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Movies:</span>
+                  <span className="ml-2 font-medium">
+                    {sheetPreviews[activePreviewSheet].movies?.length || 0}
+                  </span>
+                </div>
+              </div>
 
-          {sheetPreviews[activePreviewSheet] && (
-            <div className="text-sm text-slate-500 border-t pt-2">
-              {sheetPreviews[activePreviewSheet].dateRange && (
-                <span className="mr-4">
-                  Date Range: {sheetPreviews[activePreviewSheet].dateRange?.start} to {sheetPreviews[activePreviewSheet].dateRange?.end}
-                </span>
+              {/* Detected Movies Table */}
+              {sheetPreviews[activePreviewSheet].movies?.length > 0 && (
+                <div className="flex-1 overflow-auto border rounded">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-100">
+                        <TableHead className="sticky top-0 bg-slate-100">Film</TableHead>
+                        {sheetPreviews[activePreviewSheet].detectedWeekdays.map(day => (
+                          <TableHead key={day} className="sticky top-0 bg-slate-100 text-center min-w-[80px]">
+                            {day}
+                          </TableHead>
+                        ))}
+                        <TableHead className="sticky top-0 bg-slate-100 text-right">Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sheetPreviews[activePreviewSheet].movies.map((movie, idx) => {
+                        const totalSessions = movie.times.reduce((sum, t) => sum + t.times.length, 0);
+                        return (
+                          <TableRow key={idx}>
+                            <TableCell className="font-medium max-w-[300px] truncate" title={movie.filmName}>
+                              {movie.filmName}
+                            </TableCell>
+                            {sheetPreviews[activePreviewSheet].detectedWeekdays.map(day => {
+                              const dayTimes = movie.times.find(t => t.weekday === day);
+                              return (
+                                <TableCell key={day} className="text-center text-blue-600 text-sm">
+                                  {dayTimes?.times.join(' ') || '-'}
+                                </TableCell>
+                              );
+                            })}
+                            <TableCell className="text-right">
+                              <Badge variant="secondary">{totalSessions}</Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
-              {sheetPreviews[activePreviewSheet].detectedWeekdays.length > 0 && (
-                <span>
-                  Detected weekdays: {sheetPreviews[activePreviewSheet].detectedWeekdays.join(', ')}
-                </span>
-              )}
-            </div>
+
+              {/* Raw Cells View (collapsible) */}
+              <details className="border rounded">
+                <summary className="px-3 py-2 cursor-pointer text-sm text-slate-600 hover:bg-slate-50">
+                  Raw Excel Data (click to expand)
+                </summary>
+                <div className="max-h-[200px] overflow-auto">
+                  <table className="text-xs border-collapse w-full">
+                    <tbody>
+                      {sheetPreviews[activePreviewSheet].rawCells?.slice(0, 30).map((row, rowIdx) => (
+                        <tr key={rowIdx} className={rowIdx === sheetPreviews[activePreviewSheet].headerRowIndex ? 'bg-slate-100 font-bold' : ''}>
+                          {row.slice(0, 15).map((cell, colIdx) => (
+                            <td
+                              key={colIdx}
+                              className={`border px-1 py-0.5 min-w-[60px] max-w-[150px] truncate ${
+                                cell.type === 'movie' ? 'bg-green-50 text-green-800 font-medium' :
+                                cell.type === 'time' ? 'bg-blue-50 text-blue-800' :
+                                cell.type === 'date-range' ? 'bg-amber-50 text-amber-800' :
+                                cell.type === 'header' ? 'bg-slate-200' :
+                                cell.type === 'empty' ? 'bg-slate-50' : ''
+                              }`}
+                              title={cell.value}
+                            >
+                              {cell.value || '\u00A0'}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            </>
           )}
 
           <DialogFooter>

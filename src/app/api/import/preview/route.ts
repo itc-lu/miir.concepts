@@ -4,60 +4,144 @@ import * as XLSX from 'xlsx';
 
 interface CellData {
   value: string;
-  type: 'header' | 'movie' | 'time' | 'data' | 'empty';
+  type: 'header' | 'movie' | 'time' | 'date-range' | 'data' | 'empty';
   row: number;
   col: number;
 }
 
-interface RowData {
-  cells: CellData[];
-  rowType: 'header' | 'data' | 'empty';
-  movieName?: string;
-  times?: { weekday: string; times: string[] }[];
+interface MovieRow {
+  filmName: string;
+  importTitle: string;
+  times: { weekday: string; date: string; times: string[] }[];
 }
 
 interface SheetPreview {
   index: number;
   name: string;
-  headers: string[];
-  rows: RowData[];
-  dateRange: { start: string; end: string } | null;
+  rawCells: CellData[][];
+  dateRange: { start: string; end: string; text: string } | null;
+  extractedDates: { weekday: string; date: string }[];
   detectedWeekdays: string[];
+  movies: MovieRow[];
+  headerRowIndex: number;
   filmColumnIndex: number;
-  weekdayColumnStart: number;
 }
 
-// Weekday detection patterns
-const WEEKDAY_PATTERNS: Record<string, string> = {
-  // English
-  'mon': 'Mon', 'monday': 'Mon',
-  'tue': 'Tue', 'tues': 'Tue', 'tuesday': 'Tue',
-  'wed': 'Wed', 'wednesday': 'Wed',
-  'thu': 'Thu', 'thur': 'Thu', 'thurs': 'Thu', 'thursday': 'Thu',
-  'fri': 'Fri', 'friday': 'Fri',
-  'sat': 'Sat', 'saturday': 'Sat',
-  'sun': 'Sun', 'sunday': 'Sun',
-  // French
-  'lun': 'Mon', 'lundi': 'Mon',
-  'mar': 'Tue', 'mardi': 'Tue',
-  'mer': 'Wed', 'mercredi': 'Wed',
-  'jeu': 'Thu', 'jeudi': 'Thu',
-  'ven': 'Fri', 'vendredi': 'Fri',
-  'sam': 'Sat', 'samedi': 'Sat',
-  'dim': 'Sun', 'dimanche': 'Sun',
-  // German
-  'mo': 'Mon', 'montag': 'Mon',
-  'di': 'Tue', 'dienstag': 'Tue',
-  'mi': 'Wed', 'mittwoch': 'Wed',
-  'do': 'Thu', 'donnerstag': 'Thu',
-  'fr': 'Fri', 'freitag': 'Fri',
-  'sa': 'Sat', 'samstag': 'Sat',
-  'so': 'Sun', 'sonntag': 'Sun',
+// Standard weekday names used in Kinepolis format
+const WEEKDAY_NAMES = new Set(['Mon', 'Tues', 'Wed', 'Thurs', 'Fri', 'Sat', 'Sun']);
+
+// Map from file weekday to standard short form
+const WEEKDAY_MAP: Record<string, string> = {
+  'Mon': 'Mon', 'Monday': 'Mon',
+  'Tues': 'Tue', 'Tue': 'Tue', 'Tuesday': 'Tue',
+  'Wed': 'Wed', 'Wednesday': 'Wed',
+  'Thurs': 'Thu', 'Thu': 'Thu', 'Thursday': 'Thu',
+  'Fri': 'Fri', 'Friday': 'Fri',
+  'Sat': 'Sat', 'Saturday': 'Sat',
+  'Sun': 'Sun', 'Sunday': 'Sun',
 };
 
-function normalizeWeekday(text: string): string | null {
-  const lower = text.toLowerCase().trim();
-  return WEEKDAY_PATTERNS[lower] || null;
+// Month names for parsing
+const MONTH_NAMES: Record<string, number> = {
+  'january': 1, 'jan': 1,
+  'february': 2, 'feb': 2,
+  'march': 3, 'mar': 3,
+  'april': 4, 'apr': 4,
+  'may': 5,
+  'june': 6, 'jun': 6,
+  'july': 7, 'jul': 7,
+  'august': 8, 'aug': 8,
+  'september': 9, 'sep': 9, 'sept': 9,
+  'october': 10, 'oct': 10,
+  'november': 11, 'nov': 11,
+  'december': 12, 'dec': 12,
+};
+
+function isWeekDatesRow(row: any[]): boolean {
+  // Check if row contains a date range like "Wednesday, 28 May 2025 - Tuesday, 3 June 2025"
+  return row.some(cell => {
+    const str = String(cell || '');
+    return str.includes('-') && /\d{1,2}\s+[A-Za-z]+\s+\d{4}/.test(str);
+  });
+}
+
+function isDayColumnsRow(row: any[]): boolean {
+  // Check if row contains weekday names
+  return row.some(cell => WEEKDAY_NAMES.has(String(cell || '').trim()));
+}
+
+function parseFlexibleDate(dateStr: string): Date | null {
+  // Try formats: "28 May 2025" or "May 28, 2025"
+  const formats = [
+    /(\d{1,2})\s+([A-Za-z]+),?\s+(\d{4})/,  // 28 May 2025 or 28 May, 2025
+    /([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/,  // May 28 2025 or May 28, 2025
+  ];
+
+  for (const regex of formats) {
+    const match = dateStr.match(regex);
+    if (match) {
+      let day: number, month: number, year: number;
+
+      if (/^\d+$/.test(match[1])) {
+        // First format: day month year
+        day = parseInt(match[1], 10);
+        month = MONTH_NAMES[match[2].toLowerCase()] || 0;
+        year = parseInt(match[3], 10);
+      } else {
+        // Second format: month day year
+        month = MONTH_NAMES[match[1].toLowerCase()] || 0;
+        day = parseInt(match[2], 10);
+        year = parseInt(match[3], 10);
+      }
+
+      if (month > 0 && day > 0 && year > 0) {
+        return new Date(year, month - 1, day);
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractDateRange(row: any[]): { start: Date; end: Date; text: string } | null {
+  for (const cell of row) {
+    const str = String(cell || '');
+    if (!str.includes('-')) continue;
+
+    // Extract date portions from "Wednesday, 28 May 2025 - Tuesday, 3 June 2025"
+    const regex = /(?:[A-Za-z]+day,?\s*)?(\d{1,2}\s+[A-Za-z]+|\b[A-Za-z]+\s+\d{1,2})(?:,)?\s*(\d{4})?\s*[-–—]\s*(?:[A-Za-z]+day,?\s*)?(\d{1,2}\s+[A-Za-z]+|\b[A-Za-z]+\s+\d{1,2})(?:,)?\s*(\d{4})?/i;
+
+    const match = str.match(regex);
+    if (match) {
+      const currentYear = new Date().getFullYear();
+      const startYear = match[2] || match[4] || String(currentYear);
+      const endYear = match[4] || match[2] || String(currentYear);
+
+      const startDate = parseFlexibleDate(`${match[1]}, ${startYear}`);
+      const endDate = parseFlexibleDate(`${match[3]}, ${endYear}`);
+
+      if (startDate && endDate) {
+        return { start: startDate, end: endDate, text: str };
+      }
+    }
+  }
+  return null;
+}
+
+function generateDateRange(start: Date, end: Date): { weekday: string; date: string }[] {
+  const dates: { weekday: string; date: string }[] = [];
+  const weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  const current = new Date(start);
+  while (current <= end) {
+    dates.push({
+      weekday: weekdayNames[current.getDay()],
+      date: current.toISOString().split('T')[0],
+    });
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
 }
 
 function containsTime(text: string): boolean {
@@ -65,6 +149,7 @@ function containsTime(text: string): boolean {
 }
 
 function extractTimes(text: string): string[] {
+  // Handle newline-separated times like "10:15\n14:15"
   const matches = text.match(/\b\d{1,2}:\d{2}\b/g) || [];
   return matches;
 }
@@ -108,158 +193,163 @@ export async function POST(request: NextRequest) {
 
       if (jsonData.length === 0) continue;
 
-      // Detect header row (look for weekday names)
-      let headerRowIndex = -1;
-      let detectedWeekdays: string[] = [];
-      let weekdayColumnMap: Map<string, number> = new Map();
-      let filmColumnIndex = 0;
-      let weekdayColumnStart = 3;
+      // Step 1: Find the week dates row and day columns row (like Odoo parser)
+      let dateRangeResult: { start: Date; end: Date; text: string } | null = null;
+      let dayColumnsRowIndex = -1;
+      let dayColumnsDict: Map<number, string> = new Map(); // col index -> weekday name
+      let filmColumnIndex = -1;
+      let extractedDates: { weekday: string; date: string }[] = [];
 
-      for (let i = 0; i < Math.min(10, jsonData.length); i++) {
-        const row = jsonData[i];
-        let weekdayCount = 0;
-        const tempWeekdays: string[] = [];
+      // Scan first 10 rows for structure
+      for (let rowIdx = 0; rowIdx < Math.min(10, jsonData.length); rowIdx++) {
+        const row = jsonData[rowIdx] || [];
 
-        for (let j = 0; j < row.length; j++) {
-          const cell = String(row[j] || '').trim();
-          const normalized = normalizeWeekday(cell);
-          if (normalized) {
-            weekdayCount++;
-            tempWeekdays.push(normalized);
-            weekdayColumnMap.set(normalized, j);
-            if (weekdayColumnStart > j) {
-              weekdayColumnStart = j;
+        // Check for week dates row
+        if (isWeekDatesRow(row)) {
+          dateRangeResult = extractDateRange(row);
+          if (dateRangeResult) {
+            extractedDates = generateDateRange(dateRangeResult.start, dateRangeResult.end);
+          }
+        }
+
+        // Check for day columns row
+        if (isDayColumnsRow(row)) {
+          for (let colIdx = 0; colIdx < row.length; colIdx++) {
+            const cellValue = String(row[colIdx] || '').trim();
+            if (WEEKDAY_NAMES.has(cellValue)) {
+              dayColumnsDict.set(colIdx, cellValue);
+            }
+            if (cellValue.toLowerCase() === 'film') {
+              filmColumnIndex = colIdx;
             }
           }
-        }
-
-        if (weekdayCount >= 5) {
-          headerRowIndex = i;
-          detectedWeekdays = tempWeekdays;
-          break;
+          dayColumnsRowIndex = rowIdx;
+          break; // Stop after finding day columns
         }
       }
 
-      // Detect film column (usually first column or "Film" column)
-      if (headerRowIndex >= 0) {
-        const headerRow = jsonData[headerRowIndex];
-        for (let j = 0; j < headerRow.length; j++) {
-          const cell = String(headerRow[j] || '').toLowerCase();
-          if (cell.includes('film') || cell.includes('title') || cell.includes('titre')) {
-            filmColumnIndex = j;
-            break;
-          }
-        }
+      // If film column not found, default to first column after finding day row
+      if (filmColumnIndex === -1 && dayColumnsRowIndex >= 0) {
+        filmColumnIndex = 1; // Usually column B (index 1)
       }
 
-      // Detect date range
-      let dateRange: { start: string; end: string } | null = null;
-      for (let i = 0; i < Math.min(5, jsonData.length); i++) {
-        const row = jsonData[i];
-        for (const cell of row) {
-          const cellStr = String(cell || '');
-          // Pattern: "04/06 - 10/06" or "04.06 - 10.06"
-          const rangeMatch = cellStr.match(
-            /(\d{1,2})[\/\.](\d{1,2})(?:[\/\.](\d{2,4}))?\s*[-–—]\s*(\d{1,2})[\/\.](\d{1,2})(?:[\/\.](\d{2,4}))?/
-          );
-          if (rangeMatch) {
-            const year = rangeMatch[3]
-              ? parseInt(rangeMatch[3], 10) < 100
-                ? 2000 + parseInt(rangeMatch[3], 10)
-                : parseInt(rangeMatch[3], 10)
-              : new Date().getFullYear();
+      // Step 2: Build raw cells data for preview
+      const rawCells: CellData[][] = [];
+      const maxRows = Math.min(50, jsonData.length);
 
-            const startDay = parseInt(rangeMatch[1], 10);
-            const startMonth = parseInt(rangeMatch[2], 10);
-            const endDay = parseInt(rangeMatch[4], 10);
-            const endMonth = parseInt(rangeMatch[5], 10);
-
-            dateRange = {
-              start: `${year}-${String(startMonth).padStart(2, '0')}-${String(startDay).padStart(2, '0')}`,
-              end: `${year}-${String(endMonth).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`,
-            };
-            break;
-          }
-        }
-        if (dateRange) break;
-      }
-
-      // Build row data
-      const rows: RowData[] = [];
-      let headers: string[] = [];
-
-      for (let rowIdx = 0; rowIdx < Math.min(100, jsonData.length); rowIdx++) {
+      for (let rowIdx = 0; rowIdx < maxRows; rowIdx++) {
         const row = jsonData[rowIdx] || [];
         const cells: CellData[] = [];
-        let hasContent = false;
 
-        for (let colIdx = 0; colIdx < Math.max(row.length, 10); colIdx++) {
+        // Find max columns in this section
+        const maxCols = Math.max(
+          ...Array.from(dayColumnsDict.keys()),
+          filmColumnIndex + 1,
+          20
+        );
+
+        for (let colIdx = 0; colIdx <= maxCols; colIdx++) {
           const cellValue = String(row[colIdx] ?? '').trim();
           let cellType: CellData['type'] = 'data';
 
           if (!cellValue) {
             cellType = 'empty';
-          } else if (rowIdx === headerRowIndex) {
+          } else if (rowIdx === dayColumnsRowIndex) {
             cellType = 'header';
-          } else if (colIdx === filmColumnIndex && cellValue.length > 2) {
+          } else if (dateRangeResult && cellValue.includes(dateRangeResult.text.substring(0, 20))) {
+            cellType = 'date-range';
+          } else if (colIdx === filmColumnIndex && cellValue.length > 3 && rowIdx > dayColumnsRowIndex) {
             cellType = 'movie';
-            hasContent = true;
           } else if (containsTime(cellValue)) {
             cellType = 'time';
-            hasContent = true;
           }
 
           cells.push({
-            value: cellValue,
+            value: cellValue.replace(/\n/g, ' '),
             type: cellType,
             row: rowIdx,
             col: colIdx,
           });
         }
 
-        // Determine row type
-        let rowType: RowData['rowType'] = 'data';
-        if (rowIdx === headerRowIndex) {
-          rowType = 'header';
-          headers = row.map((c: any) => String(c || ''));
-        } else if (!hasContent) {
-          rowType = 'empty';
-        }
+        rawCells.push(cells);
+      }
 
-        // Extract movie name and times for data rows
-        let movieName: string | undefined;
-        let times: { weekday: string; times: string[] }[] | undefined;
+      // Step 3: Extract movies with their session times
+      const movies: MovieRow[] = [];
 
-        if (rowType === 'data' && hasContent) {
-          movieName = String(row[filmColumnIndex] || '').trim();
-          times = [];
+      // Map weekday names from file to standard short names for date matching
+      const weekdayToStandard: Record<string, string> = {
+        'Mon': 'Mon',
+        'Tues': 'Tue',
+        'Wed': 'Wed',
+        'Thurs': 'Thu',
+        'Fri': 'Fri',
+        'Sat': 'Sat',
+        'Sun': 'Sun',
+      };
 
-          for (const [weekday, colIndex] of weekdayColumnMap) {
-            const cellValue = String(row[colIndex] || '').trim();
-            const extractedTimes = extractTimes(cellValue);
-            if (extractedTimes.length > 0) {
-              times.push({ weekday, times: extractedTimes });
+      if (dayColumnsRowIndex >= 0) {
+        for (let rowIdx = dayColumnsRowIndex + 1; rowIdx < jsonData.length; rowIdx++) {
+          const row = jsonData[rowIdx] || [];
+          const filmName = String(row[filmColumnIndex] || '').trim();
+
+          if (!filmName || filmName.length < 3) continue;
+
+          const movieRow: MovieRow = {
+            filmName,
+            importTitle: filmName,
+            times: [],
+          };
+
+          let hasAnyTime = false;
+
+          // Check each weekday column - times may be at the column index OR one column before
+          for (const [colIdx, weekdayName] of dayColumnsDict) {
+            // Try column at header index first, then column-1 (Kinepolis quirk)
+            let showTime = String(row[colIdx] || '').trim();
+            if (!showTime && colIdx > 0) {
+              showTime = String(row[colIdx - 1] || '').trim();
+            }
+
+            const times = extractTimes(showTime);
+            if (times.length > 0) {
+              hasAnyTime = true;
+
+              // Find the corresponding date
+              const standardWeekday = weekdayToStandard[weekdayName] || weekdayName;
+              const dateEntry = extractedDates.find(d => d.weekday === standardWeekday);
+
+              movieRow.times.push({
+                weekday: weekdayName,
+                date: dateEntry?.date || '',
+                times,
+              });
             }
           }
-        }
 
-        rows.push({
-          cells,
-          rowType,
-          movieName,
-          times,
-        });
+          if (hasAnyTime) {
+            movies.push(movieRow);
+          }
+        }
       }
+
+      const detectedWeekdays = Array.from(dayColumnsDict.values());
 
       previews.push({
         index: idx,
         name: sheetName,
-        headers,
-        rows,
-        dateRange,
+        rawCells,
+        dateRange: dateRangeResult ? {
+          start: dateRangeResult.start.toISOString().split('T')[0],
+          end: dateRangeResult.end.toISOString().split('T')[0],
+          text: dateRangeResult.text,
+        } : null,
+        extractedDates,
         detectedWeekdays,
+        movies,
+        headerRowIndex: dayColumnsRowIndex,
         filmColumnIndex,
-        weekdayColumnStart,
       });
     }
 

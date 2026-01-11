@@ -228,44 +228,44 @@ ALTER TABLE import_conflict_sessions ENABLE ROW LEVEL SECURITY;
 -- Parsers - read by all authenticated, modify by admins
 CREATE POLICY "parsers_select" ON parsers FOR SELECT TO authenticated USING (true);
 CREATE POLICY "parsers_admin" ON parsers FOR ALL TO authenticated
-    USING (is_internal_admin_or_above());
+    USING (is_internal_admin_or_above(auth.uid()));
 
 -- Language mappings - read by all authenticated, modify by admins
 CREATE POLICY "lang_mapping_configs_select" ON language_mapping_configs FOR SELECT TO authenticated USING (true);
 CREATE POLICY "lang_mapping_configs_admin" ON language_mapping_configs FOR ALL TO authenticated
-    USING (is_internal_admin_or_above());
+    USING (is_internal_admin_or_above(auth.uid()));
 
 CREATE POLICY "lang_mapping_lines_select" ON language_mapping_lines FOR SELECT TO authenticated USING (true);
 CREATE POLICY "lang_mapping_lines_admin" ON language_mapping_lines FOR ALL TO authenticated
-    USING (is_internal_admin_or_above());
+    USING (is_internal_admin_or_above(auth.uid()));
 
 -- Import conflicts - accessible by admins and users with cinema access
 CREATE POLICY "import_conflict_movies_select" ON import_conflict_movies FOR SELECT TO authenticated
     USING (
-        is_internal_admin_or_above() OR
+        is_internal_admin_or_above(auth.uid()) OR
         cinema_id = ANY(get_accessible_cinema_ids(auth.uid()))
     );
 CREATE POLICY "import_conflict_movies_admin" ON import_conflict_movies FOR ALL TO authenticated
-    USING (is_internal_admin_or_above());
+    USING (is_internal_admin_or_above(auth.uid()));
 
 CREATE POLICY "import_conflict_editions_select" ON import_conflict_editions FOR SELECT TO authenticated
     USING (
         EXISTS (
             SELECT 1 FROM import_conflict_movies m
             WHERE m.id = conflict_movie_id
-            AND (is_internal_admin_or_above() OR m.cinema_id = ANY(get_accessible_cinema_ids(auth.uid())))
+            AND (is_internal_admin_or_above(auth.uid()) OR m.cinema_id = ANY(get_accessible_cinema_ids(auth.uid())))
         )
     );
 CREATE POLICY "import_conflict_editions_admin" ON import_conflict_editions FOR ALL TO authenticated
-    USING (is_internal_admin_or_above());
+    USING (is_internal_admin_or_above(auth.uid()));
 
 CREATE POLICY "import_conflict_sessions_select" ON import_conflict_sessions FOR SELECT TO authenticated
     USING (
-        is_internal_admin_or_above() OR
+        is_internal_admin_or_above(auth.uid()) OR
         cinema_id = ANY(get_accessible_cinema_ids(auth.uid()))
     );
 CREATE POLICY "import_conflict_sessions_admin" ON import_conflict_sessions FOR ALL TO authenticated
-    USING (is_internal_admin_or_above());
+    USING (is_internal_admin_or_above(auth.uid()));
 
 -- ============================================================================
 -- HELPER FUNCTIONS

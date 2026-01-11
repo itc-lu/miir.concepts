@@ -129,7 +129,16 @@ export default function ParsersAdminPage() {
     if (parsersRes.data) setParsers(parsersRes.data);
     if (mappingsRes.data) setMappings(mappingsRes.data);
     if (languagesRes.data) setLanguages(languagesRes.data);
-    if (cinemasRes.data) setCinemas(cinemasRes.data as Cinema[]);
+    if (cinemasRes.data) {
+      // Transform cinema_group from array to single object
+      const transformedCinemas = cinemasRes.data.map((cinema: any) => ({
+        ...cinema,
+        cinema_group: Array.isArray(cinema.cinema_group)
+          ? cinema.cinema_group[0]
+          : cinema.cinema_group,
+      }));
+      setCinemas(transformedCinemas);
+    }
 
     setLoading(false);
   }

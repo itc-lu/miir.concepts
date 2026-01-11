@@ -179,7 +179,7 @@ export default function UsersPage() {
 
       if (authError) {
         console.error('[User Create] Auth error:', authError.message, authError);
-        // Show the actual Supabase error - don't override unless we have a specific translation
+        // Show the actual Supabase error with helpful context
         if (authError.message.includes('already registered') || authError.message.includes('already been registered')) {
           throw new Error('A user with this email already exists');
         } else if (authError.message.includes('Password should be at least')) {
@@ -187,10 +187,12 @@ export default function UsersPage() {
         } else if (authError.message.includes('Unable to validate email')) {
           throw new Error('Unable to validate email address. Check your Supabase email settings.');
         } else if (authError.message.includes('Signups not allowed')) {
-          throw new Error('User signups are disabled. Enable them in Supabase Auth settings.');
+          throw new Error('User signups are disabled. Enable them in Supabase Dashboard > Authentication > Providers > Email.');
+        } else if (authError.message.includes('invalid') && authError.message.toLowerCase().includes('email')) {
+          throw new Error(`Supabase rejected the email: "${email}". Check Supabase Dashboard > Authentication > Email Templates and Providers settings.`);
         }
-        // For any other error, show the actual message
-        throw new Error(authError.message);
+        // For any other error, show the actual message with context
+        throw new Error(`Supabase Auth error: ${authError.message}`);
       }
 
       // Wait a bit for the trigger to create the profile

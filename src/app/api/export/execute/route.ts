@@ -183,8 +183,18 @@ export async function GET(request: NextRequest) {
     const { data: screenings, error: screeningsError } = await query;
 
     if (screeningsError) {
+      console.error('[Export API] Screenings query error:', screeningsError);
+      // Check for common issues
+      if (screeningsError.message.includes('schema cache') || screeningsError.message.includes('does not exist')) {
+        return NextResponse.json(
+          { error: `Database table not found. Please run migration 005_cinema_requirements.sql on your database. Error: ${screeningsError.message}` },
+          { status: 500 }
+        );
+      }
       throw screeningsError;
     }
+
+    console.log('[Export API] Found screenings:', screenings?.length || 0);
 
     // Generate output based on format
     let output: string;

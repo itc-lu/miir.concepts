@@ -57,6 +57,7 @@ export default function CinemaGroupsPage() {
 
   const [items, setItems] = useState<(CinemaGroup & { country?: Country })[]>([]);
   const [countries, setCountries] = useState<Country[]>([]);
+  const [parsers, setParsers] = useState<{ id: string; name: string; slug: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -71,6 +72,7 @@ export default function CinemaGroupsPage() {
     name: '',
     slug: '',
     country_id: '',
+    parser_id: '',
     website: '',
     logo_url: '',
     description: '',
@@ -83,16 +85,18 @@ export default function CinemaGroupsPage() {
   // Fetch data
   async function fetchData() {
     setLoading(true);
-    const [itemsRes, countriesRes] = await Promise.all([
+    const [itemsRes, countriesRes, parsersRes] = await Promise.all([
       supabase
         .from('cinema_groups')
         .select('*, country:countries(*)')
         .order('name'),
       supabase.from('countries').select('*').order('name'),
+      supabase.from('parsers').select('id, name, slug').eq('is_active', true).order('name'),
     ]);
 
     if (itemsRes.data) setItems(itemsRes.data);
     if (countriesRes.data) setCountries(countriesRes.data);
+    if (parsersRes.data) setParsers(parsersRes.data);
     setLoading(false);
   }
 
@@ -127,6 +131,7 @@ export default function CinemaGroupsPage() {
           name: formData.name,
           slug: formData.slug || generateSlug(formData.name),
           country_id: formData.country_id || null,
+          parser_id: formData.parser_id || null,
           website: formData.website || null,
           logo_url: formData.logo_url || null,
           description: formData.description || null,
@@ -165,6 +170,7 @@ export default function CinemaGroupsPage() {
           name: formData.name,
           slug: formData.slug,
           country_id: formData.country_id || null,
+          parser_id: formData.parser_id || null,
           website: formData.website || null,
           logo_url: formData.logo_url || null,
           description: formData.description || null,
@@ -217,6 +223,7 @@ export default function CinemaGroupsPage() {
       name: '',
       slug: '',
       country_id: '',
+      parser_id: '',
       website: '',
       logo_url: '',
       description: '',
@@ -225,12 +232,13 @@ export default function CinemaGroupsPage() {
   }
 
   // Open edit dialog
-  function openEditDialog(item: CinemaGroup) {
+  function openEditDialog(item: CinemaGroup & { parser_id?: string }) {
     setSelectedItem(item);
     setFormData({
       name: item.name,
       slug: item.slug,
       country_id: item.country_id || '',
+      parser_id: item.parser_id || '',
       website: item.website || '',
       logo_url: item.logo_url || '',
       description: item.description || '',
@@ -454,6 +462,23 @@ export default function CinemaGroupsPage() {
                 </select>
               </div>
               <div className="space-y-2">
+                <Label htmlFor="parser">Default Parser</Label>
+                <select
+                  id="parser"
+                  value={formData.parser_id}
+                  onChange={(e) => setFormData({ ...formData, parser_id: e.target.value })}
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                >
+                  <option value="">None (manual only)</option>
+                  {parsers.map(parser => (
+                    <option key={parser.id} value={parser.id}>
+                      {parser.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-500">Cinemas in this group will inherit this parser unless overridden</p>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="website">Website</Label>
                 <Input
                   id="website"
@@ -562,6 +587,23 @@ export default function CinemaGroupsPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_parser">Default Parser</Label>
+                <select
+                  id="edit_parser"
+                  value={formData.parser_id}
+                  onChange={(e) => setFormData({ ...formData, parser_id: e.target.value })}
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                >
+                  <option value="">None (manual only)</option>
+                  {parsers.map(parser => (
+                    <option key={parser.id} value={parser.id}>
+                      {parser.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-500">Cinemas in this group will inherit this parser unless overridden</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit_website">Website</Label>

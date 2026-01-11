@@ -22,6 +22,7 @@ import { generateSlug } from '@/lib/utils';
 interface CinemaGroup {
   id: string;
   name: string;
+  parser_id: string | null;
 }
 
 interface Country {
@@ -34,6 +35,13 @@ interface CinemaTag {
   id: string;
   name: string;
   color: string | null;
+}
+
+interface Parser {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
 }
 
 export default function EditCinemaPage() {
@@ -69,6 +77,7 @@ export default function EditCinemaPage() {
     longitude: '',
     screen_count: '1',
     is_active: true,
+    parser_id: '',
     parser_type: '',
     timezone: 'Europe/Luxembourg',
     week_start_day_override: '',
@@ -101,6 +110,7 @@ export default function EditCinemaPage() {
   const [cinemaGroups, setCinemaGroups] = useState<CinemaGroup[]>([]);
   const [countries, setCountries] = useState<Country[]>([]);
   const [cinemaTags, setCinemaTags] = useState<CinemaTag[]>([]);
+  const [parsers, setParsers] = useState<Parser[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   useEffect(() => {
@@ -111,15 +121,17 @@ export default function EditCinemaPage() {
     setLoading(true);
 
     // Fetch reference data
-    const [groupRes, countryRes, tagRes] = await Promise.all([
-      supabase.from('cinema_groups').select('id, name').eq('is_active', true).order('name'),
+    const [groupRes, countryRes, tagRes, parserRes] = await Promise.all([
+      supabase.from('cinema_groups').select('id, name, parser_id').eq('is_active', true).order('name'),
       supabase.from('countries').select('id, code, name').order('name'),
       supabase.from('cinema_tags').select('id, name, color').eq('is_active', true).order('name'),
+      supabase.from('parsers').select('id, name, slug, description').eq('is_active', true).order('name'),
     ]);
 
     if (groupRes.data) setCinemaGroups(groupRes.data);
     if (countryRes.data) setCountries(countryRes.data);
     if (tagRes.data) setCinemaTags(tagRes.data);
+    if (parserRes.data) setParsers(parserRes.data);
 
     // Fetch cinema
     const { data: cinema } = await supabase
@@ -146,6 +158,7 @@ export default function EditCinemaPage() {
         longitude: cinema.longitude?.toString() || '',
         screen_count: cinema.screen_count?.toString() || '1',
         is_active: cinema.is_active,
+        parser_id: cinema.parser_id || '',
         parser_type: cinema.parser_type || '',
         timezone: cinema.timezone || 'Europe/Luxembourg',
         week_start_day_override: cinema.week_start_day_override?.toString() || '',
@@ -210,6 +223,7 @@ export default function EditCinemaPage() {
           longitude: formData.longitude ? parseFloat(formData.longitude) : null,
           screen_count: parseInt(formData.screen_count) || 1,
           is_active: formData.is_active,
+          parser_id: formData.parser_id || null,
           parser_type: formData.parser_type || null,
           timezone: formData.timezone || 'Europe/Luxembourg',
           week_start_day_override: formData.week_start_day_override ? parseInt(formData.week_start_day_override) : null,
@@ -592,19 +606,32 @@ export default function EditCinemaPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="parser_type">Parser Type</Label>
+              <Label htmlFor="parser_id">Import Parser</Label>
               <Select
-                id="parser_type"
-                name="parser_type"
-                value={formData.parser_type}
+                id="parser_id"
+                name="parser_id"
+                value={formData.parser_id}
                 onChange={handleChange}
               >
-                <option value="">None (manual only)</option>
-                <option value="kinepolis">Kinepolis</option>
-                <option value="utopia">Utopia</option>
-                <option value="generic_xml">Generic XML</option>
-                <option value="generic_json">Generic JSON</option>
+                <option value="">
+                  {formData.cinema_group_id
+                    ? `Inherit from group (${cinemaGroups.find(g => g.id === formData.cinema_group_id)?.parser_id
+                        ? parsers.find(p => p.id === cinemaGroups.find(g => g.id === formData.cinema_group_id)?.parser_id)?.name
+                        : 'None'
+                      })`
+                    : 'None (manual only)'}
+                </option>
+                {parsers.map(parser => (
+                  <option key={parser.id} value={parser.id}>
+                    {parser.name}
+                  </option>
+                ))}
               </Select>
+              {formData.cinema_group_id && !formData.parser_id && (
+                <p className="text-xs text-muted-foreground">
+                  Leave empty to use the parser configured at the cinema group level
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="missing_info">Missing Info / Notes</Label>

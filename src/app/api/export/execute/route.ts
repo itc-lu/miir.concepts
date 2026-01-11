@@ -6,10 +6,21 @@ let supabase: SupabaseClient | null = null;
 
 function getSupabase() {
   if (!supabase) {
-    supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    console.log('[Export API] Initializing Supabase:', {
+      hasUrl: !!supabaseUrl,
+      hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      usingKey: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'service_role' : 'anon',
+    });
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error(`Missing Supabase configuration: URL=${!!supabaseUrl}, Key=${!!supabaseKey}`);
+    }
+
+    supabase = createClient(supabaseUrl, supabaseKey);
   }
   return supabase;
 }
@@ -105,6 +116,8 @@ export async function GET(request: NextRequest) {
   try {
     const db = getSupabase();
 
+    console.log('[Export API] Looking for template:', templateId);
+
     // Fetch template
     const { data: template, error: templateError } = await db
       .from('export_templates')
@@ -112,9 +125,15 @@ export async function GET(request: NextRequest) {
       .eq('id', templateId)
       .single();
 
+    console.log('[Export API] Template query result:', {
+      found: !!template,
+      error: templateError?.message,
+      templateName: template?.name,
+    });
+
     if (templateError || !template) {
       return NextResponse.json(
-        { error: 'Template not found' },
+        { error: `Template not found: ${templateError?.message || 'No template with this ID'}` },
         { status: 404 }
       );
     }

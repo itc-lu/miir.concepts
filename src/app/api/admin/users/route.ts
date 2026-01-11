@@ -2,25 +2,27 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createClient as createServerClient } from '@/lib/supabase/server';
 
-// Create admin client with service role key for user management
-function createAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY environment variable');
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
-}
-
 export async function POST(request: NextRequest) {
   try {
+    // Check for service role key first
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!serviceRoleKey) {
+      console.error('[Admin Create User] Missing SUPABASE_SERVICE_ROLE_KEY');
+      return NextResponse.json(
+        { error: 'Server configuration error: Missing SUPABASE_SERVICE_ROLE_KEY. Add it to your Netlify environment variables.' },
+        { status: 500 }
+      );
+    }
+
+    if (!supabaseUrl) {
+      return NextResponse.json(
+        { error: 'Server configuration error: Missing SUPABASE_URL' },
+        { status: 500 }
+      );
+    }
+
     // Verify the requester is authenticated and is an admin
     const serverClient = await createServerClient();
     const {
@@ -50,8 +52,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
-    // Create admin client
-    const adminClient = createAdminClient();
+    // Create admin client with service role key
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
 
     // Create user using Admin API
     const { data: authData, error: authError } = await adminClient.auth.admin.createUser({

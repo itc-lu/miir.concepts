@@ -236,7 +236,7 @@ export default function ParsersAdminPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs defaultValue="parsers" value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="parsers">
             <FileSpreadsheet className="h-4 w-4 mr-2" />

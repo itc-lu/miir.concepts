@@ -342,7 +342,7 @@ export default function ImportPage() {
       )}
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs defaultValue="upload" value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="upload">
             <Upload className="h-4 w-4 mr-2" />

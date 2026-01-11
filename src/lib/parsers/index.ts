@@ -3,8 +3,8 @@
  * Central registry for all cinema schedule parsers
  */
 
-import type { Parser, Cinema, CinemaGroup, ParserContext, ParserResult } from '@/types/database.types';
-import { BaseParser, ParserConfig } from './base';
+import type { Parser, Cinema, CinemaGroup, ParserResult } from '@/types/database.types';
+import { BaseParser, ParserConfig, ParserContext } from './base';
 
 // Import parser implementations
 import { KinepolisParser } from './kinepolis';
@@ -20,14 +20,13 @@ import { ScalaCinextdoorParser } from './scala-cinextdoor';
 
 type ParserConstructor = new (parser: Parser, config?: ParserConfig) => BaseParser;
 
-const parserRegistry: Map<string, ParserConstructor> = new Map([
-  ['kinepolis', KinepolisParser],
-  ['kinepolis-fr-longwy-thionville', KinepolisFranceLongwyParser],
-  ['kinepolis-fr-metz-amphitheatre', KinepolisFranceMetzParser],
-  ['kinepolis-fr-waves', KinepolisFranceWavesParser],
-  ['cinextdoor', CinextdoorParser],
-  ['scala-cinextdoor', ScalaCinextdoorParser],
-]);
+const parserRegistry = new Map<string, ParserConstructor>();
+parserRegistry.set('kinepolis', KinepolisParser);
+parserRegistry.set('kinepolis-fr-longwy-thionville', KinepolisFranceLongwyParser);
+parserRegistry.set('kinepolis-fr-metz-amphitheatre', KinepolisFranceMetzParser);
+parserRegistry.set('kinepolis-fr-waves', KinepolisFranceWavesParser);
+parserRegistry.set('cinextdoor', CinextdoorParser);
+parserRegistry.set('scala-cinextdoor', ScalaCinextdoorParser);
 
 /**
  * Get a parser instance by slug

@@ -233,13 +233,13 @@ export async function POST(request: NextRequest) {
           }
 
           // Create screenings from sessions
-          const editionSessions = conflict.sessions?.filter(
+          const editionSessions: any[] = conflict.sessions?.filter(
             (s: any) => s.conflict_edition_id === edition.id || !s.conflict_edition_id
           ) || [];
 
           if (editionSessions.length > 0 && conflict.cinema_id) {
             // Group by week
-            const sessionsByWeek = new Map<string, typeof editionSessions>();
+            const sessionsByWeek = new Map<string, any[]>();
 
             for (const session of editionSessions) {
               const weekKey = session.start_week_day || session.screening_date;
@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
             }
 
             // Create screenings
-            for (const [weekStart, sessions] of sessionsByWeek) {
+            for (const [weekStart, weekSessions] of Array.from(sessionsByWeek.entries())) {
               // Create screening
               const { data: screening, error: screeningError } = await supabase
                 .from('screenings')
@@ -268,8 +268,8 @@ export async function POST(request: NextRequest) {
               }
 
               // Group sessions by date
-              const sessionsByDate = new Map<string, typeof sessions>();
-              for (const session of sessions) {
+              const sessionsByDate = new Map<string, any[]>();
+              for (const session of weekSessions) {
                 const date = session.screening_date || session.screening_datetime.split('T')[0];
                 if (!sessionsByDate.has(date)) {
                   sessionsByDate.set(date, []);
@@ -278,7 +278,7 @@ export async function POST(request: NextRequest) {
               }
 
               // Create session days and times
-              for (const [date, dateSessions] of sessionsByDate) {
+              for (const [date, dateSessions] of Array.from(sessionsByDate.entries())) {
                 const { data: sessionDay, error: dayError } = await supabase
                   .from('session_days')
                   .insert({
@@ -291,7 +291,7 @@ export async function POST(request: NextRequest) {
                 if (dayError) continue;
 
                 // Create session times
-                const timeInserts = dateSessions.map(s => ({
+                const timeInserts = dateSessions.map((s: any) => ({
                   session_day_id: sessionDay.id,
                   time_float: s.time_float || 0,
                   start_datetime: s.screening_datetime,

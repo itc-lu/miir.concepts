@@ -118,22 +118,31 @@ export async function GET(request: NextRequest) {
 
     console.log('[Export API] Looking for template:', templateId);
 
-    // Fetch template
+    // Fetch template - use maybeSingle to avoid "cannot coerce" error when no results
     const { data: template, error: templateError } = await db
       .from('export_templates')
       .select('*, client:export_clients(id, name, slug)')
       .eq('id', templateId)
-      .single();
+      .maybeSingle();
 
     console.log('[Export API] Template query result:', {
       found: !!template,
       error: templateError?.message,
-      templateName: template?.name,
+      errorCode: templateError?.code,
+      templateId,
     });
 
-    if (templateError || !template) {
+    if (templateError) {
+      console.error('[Export API] Template query error:', templateError);
       return NextResponse.json(
-        { error: `Template not found: ${templateError?.message || 'No template with this ID'}` },
+        { error: `Template query failed: ${templateError.message}` },
+        { status: 500 }
+      );
+    }
+
+    if (!template) {
+      return NextResponse.json(
+        { error: `Template not found with ID: ${templateId}. Ensure the template exists and RLS allows access.` },
         { status: 404 }
       );
     }

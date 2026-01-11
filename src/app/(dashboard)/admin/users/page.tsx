@@ -138,13 +138,25 @@ export default function UsersPage() {
     setFormLoading(true);
 
     try {
-      // Trim email to avoid validation issues
-      const email = formData.email.trim();
+      // Trim email and validate
+      const email = formData.email.trim().toLowerCase();
       const password = formData.password;
 
       if (!email) {
         throw new Error('Email is required');
       }
+
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        throw new Error('Please enter a valid email address');
+      }
+
+      if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters');
+      }
+
+      console.log('[User Create] Attempting signup for:', email);
 
       // Create user via Supabase Auth Admin API (requires service role)
       // For now, we'll use the signUp method and then update the profile
@@ -158,7 +170,24 @@ export default function UsersPage() {
         },
       });
 
-      if (authError) throw authError;
+      console.log('[User Create] Signup result:', {
+        hasUser: !!authData?.user,
+        hasSession: !!authData?.session,
+        error: authError?.message,
+        errorCode: authError?.status,
+      });
+
+      if (authError) {
+        // Provide more helpful error messages
+        if (authError.message.includes('already registered')) {
+          throw new Error('A user with this email already exists');
+        } else if (authError.message.includes('invalid')) {
+          throw new Error('Invalid email format. Please check the email address.');
+        } else if (authError.message.includes('password')) {
+          throw new Error('Password does not meet requirements (minimum 6 characters)');
+        }
+        throw authError;
+      }
 
       // Wait a bit for the trigger to create the profile
       await new Promise(resolve => setTimeout(resolve, 500));

@@ -8,11 +8,12 @@ async function safeFetch(url: string) {
     console.log('[IMDB Title] Fetching:', url);
     const response = await fetch(url, {
       headers: { Accept: 'application/json' },
-      next: { revalidate: 3600 },
+      cache: 'force-cache',
     });
     console.log('[IMDB Title] Response status for', url, ':', response.status);
     if (!response.ok) {
-      console.error('[IMDB Title] Non-OK response:', response.status, await response.text());
+      const errorText = await response.text();
+      console.error('[IMDB Title] Non-OK response:', response.status, errorText);
       return null;
     }
     const data = await response.json();
@@ -26,13 +27,13 @@ async function safeFetch(url: string) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const titleId = id.startsWith('tt') ? id : `tt${id}`;
-  console.log('[IMDB Title] Looking up:', titleId);
-
   try {
+    const { id } = await context.params;
+    const titleId = id.startsWith('tt') ? id : `tt${id}`;
+    console.log('[IMDB Title] Looking up:', titleId);
+
     // Fetch title data first (required)
     const titleData = await safeFetch(`${IMDB_API_BASE}/titles/${titleId}`);
 

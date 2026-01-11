@@ -130,3 +130,13 @@ GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT ALL ON movies_l0 TO authenticated;
 GRANT ALL ON movies_l1 TO authenticated;
 GRANT ALL ON movies_l2 TO authenticated;
+
+-- Grant execute permission on the helper function
+GRANT EXECUTE ON FUNCTION is_internal_user_or_above(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION is_internal_user_or_above(UUID) TO anon;
+
+-- Also grant execute on other helper functions that might be needed
+GRANT EXECUTE ON FUNCTION is_internal_admin_or_above(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION is_global_admin(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_user_role(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION has_cinema_access(UUID, UUID) TO authenticated;

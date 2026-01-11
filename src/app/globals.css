@@ -2,48 +2,56 @@
 
 @layer base {
   :root {
-    /* Minimal black/white/gray palette inspired by studiomiir.at */
+    /* Studio Miir inspired palette - pure, minimal, professional */
     --background: 0 0% 100%;
-    --foreground: 0 0% 8%;
+    --foreground: 0 0% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 8%;
+    --card-foreground: 0 0% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 8%;
-    --primary: 0 0% 8%;
+    --popover-foreground: 0 0% 10%;
+    --primary: 0 0% 10%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 8%;
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 45%;
-    --accent: 0 0% 96%;
-    --accent-foreground: 0 0% 8%;
-    --destructive: 0 72% 51%;
+    --secondary: 0 0% 97%;
+    --secondary-foreground: 0 0% 10%;
+    --muted: 0 0% 97%;
+    --muted-foreground: 0 0% 50%;
+    --accent: 0 0% 97%;
+    --accent-foreground: 0 0% 10%;
+    --destructive: 0 65% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
-    --ring: 0 0% 8%;
-    --radius: 0.25rem;
+    --success: 145 60% 40%;
+    --success-foreground: 0 0% 100%;
+    --warning: 35 90% 50%;
+    --warning-foreground: 0 0% 10%;
+    --border: 0 0% 92%;
+    --input: 0 0% 92%;
+    --ring: 0 0% 10%;
+    --radius: 0.375rem;
   }
 
   .dark {
-    --background: 0 0% 4%;
-    --foreground: 0 0% 96%;
-    --card: 0 0% 6%;
-    --card-foreground: 0 0% 96%;
-    --popover: 0 0% 6%;
-    --popover-foreground: 0 0% 96%;
-    --primary: 0 0% 96%;
-    --primary-foreground: 0 0% 4%;
-    --secondary: 0 0% 12%;
-    --secondary-foreground: 0 0% 96%;
-    --muted: 0 0% 12%;
+    --background: 0 0% 6%;
+    --foreground: 0 0% 94%;
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 94%;
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 94%;
+    --primary: 0 0% 94%;
+    --primary-foreground: 0 0% 6%;
+    --secondary: 0 0% 14%;
+    --secondary-foreground: 0 0% 94%;
+    --muted: 0 0% 14%;
     --muted-foreground: 0 0% 55%;
-    --accent: 0 0% 12%;
-    --accent-foreground: 0 0% 96%;
-    --destructive: 0 62% 30%;
-    --destructive-foreground: 0 0% 96%;
-    --border: 0 0% 16%;
-    --input: 0 0% 16%;
+    --accent: 0 0% 14%;
+    --accent-foreground: 0 0% 94%;
+    --destructive: 0 55% 45%;
+    --destructive-foreground: 0 0% 94%;
+    --success: 145 50% 35%;
+    --success-foreground: 0 0% 94%;
+    --warning: 35 80% 45%;
+    --warning-foreground: 0 0% 94%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
     --ring: 0 0% 80%;
   }
 }
@@ -65,14 +73,18 @@
   --color-accent-foreground: hsl(var(--accent-foreground));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) + 2px);
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --radius-lg: calc(var(--radius) + 4px);
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 @layer base {
@@ -82,19 +94,33 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Clean, minimal typography */
-  h1, h2, h3, h4, h5, h6 {
-    @apply tracking-tight font-medium;
+  /* Typography hierarchy */
+  h1 {
+    @apply text-2xl font-semibold tracking-tight;
+  }
+
+  h2 {
+    @apply text-xl font-semibold tracking-tight;
+  }
+
+  h3 {
+    @apply text-lg font-medium;
+  }
+
+  h4, h5, h6 {
+    @apply font-medium;
   }
 }
 
 /* Minimal scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -102,20 +128,20 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.2);
-  border-radius: 3px;
+  background: hsl(var(--foreground) / 0.12);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.4);
+  background: hsl(var(--foreground) / 0.2);
 }
 
-/* Focus styles */
+/* Focus ring */
 .focus-visible\:outline-none:focus-visible {
   outline: none;
 }
 
-/* Subtle animations */
+/* Animations - subtle and fast */
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -124,7 +150,7 @@
 @keyframes slide-up {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -132,39 +158,35 @@
   }
 }
 
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .animate-fade-in {
-  animation: fade-in 0.3s ease-out;
+  animation: fade-in 0.2s ease-out;
 }
 
 .animate-slide-up {
-  animation: slide-up 0.4s ease-out;
+  animation: slide-up 0.25s ease-out;
 }
 
-/* Cinema program specific styles */
-.cinema-grid {
-  display: grid;
-  gap: 1px;
-  background: hsl(var(--border));
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
 }
 
-.cinema-grid > * {
-  background: hsl(var(--background));
+/* Time display */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
-/* Time slot indicator */
-.time-slot {
-  @apply text-sm tabular-nums;
-}
-
-.time-slot-active {
-  @apply font-medium text-foreground;
-}
-
-.time-slot-past {
-  @apply text-muted-foreground;
-}
-
-/* Hide scrollbar but keep scroll functionality */
+/* Hide scrollbar */
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -172,4 +194,38 @@
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* Selection */
+::selection {
+  background: hsl(var(--foreground));
+  color: hsl(var(--background));
+}
+
+/* Table improvements */
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Status indicators */
+.status-dot {
+  @apply w-2 h-2 rounded-full;
+}
+
+.status-dot-success {
+  background: hsl(var(--success));
+}
+
+.status-dot-warning {
+  background: hsl(var(--warning));
+}
+
+.status-dot-error {
+  background: hsl(var(--destructive));
+}
+
+/* Link styles */
+a:not([class]) {
+  @apply underline underline-offset-2 decoration-foreground/30 hover:decoration-foreground/60 transition-colors;
 }

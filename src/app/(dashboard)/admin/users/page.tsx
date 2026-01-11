@@ -7,14 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { DataTable, Column, BulkAction } from '@/components/ui/data-table';
 import {
   Dialog,
   DialogContent,
@@ -407,6 +400,161 @@ export default function UsersPage() {
     }
   }
 
+  // Define columns for DataTable
+  const columns: Column<UserWithPermissions>[] = [
+    {
+      key: 'user',
+      header: 'User',
+      cell: (user) => (
+        <div>
+          <div className="font-medium text-slate-900">{user.full_name || 'No name'}</div>
+          <div className="text-sm text-slate-500">{user.email}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'role',
+      header: 'Role',
+      cell: (user) => (
+        <Badge variant={getRoleBadgeVariant(user.role)}>
+          {roleDisplayNames[user.role]}
+        </Badge>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (user) =>
+        user.is_active ? (
+          <span className="inline-flex items-center gap-1 text-green-600">
+            <CheckCircle className="h-4 w-4" />
+            Active
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-slate-400">
+            <XCircle className="h-4 w-4" />
+            Archived
+          </span>
+        ),
+    },
+    {
+      key: 'lastLogin',
+      header: 'Last Login',
+      cell: (user) => (
+        <span className="text-sm text-slate-500">
+          {user.last_login_at
+            ? new Date(user.last_login_at).toLocaleDateString()
+            : 'Never'}
+        </span>
+      ),
+    },
+    {
+      key: 'created',
+      header: 'Created',
+      cell: (user) => (
+        <span className="text-sm text-slate-500">
+          {new Date(user.created_at).toLocaleDateString()}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      className: 'w-[70px]',
+      cell: (user) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => openEditDialog(user)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit
+              </DropdownMenuItem>
+              {user.role === 'external' && (
+                <DropdownMenuItem onClick={() => openPermissionsDialog(user)}>
+                  <Building2 className="h-4 w-4 mr-2" />
+                  Cinema Access
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => {
+                setSelectedUser(user);
+                setFormError(null);
+                setFormSuccess(null);
+                setResetPasswordDialogOpen(true);
+              }}>
+                <Key className="h-4 w-4 mr-2" />
+                Reset Password
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleToggleArchive(user)}>
+                {user.is_active ? (
+                  <>
+                    <Archive className="h-4 w-4 mr-2" />
+                    Archive
+                  </>
+                ) : (
+                  <>
+                    <ArchiveRestore className="h-4 w-4 mr-2" />
+                    Restore
+                  </>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-red-600"
+                onClick={() => {
+                  setSelectedUser(user);
+                  setDeleteDialogOpen(true);
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ),
+    },
+  ];
+
+  // Define bulk actions
+  const bulkActions: BulkAction<UserWithPermissions>[] = [
+    {
+      label: 'Activate',
+      icon: <CheckCircle className="h-4 w-4" />,
+      onClick: async (items) => {
+        const ids = items.map((u) => u.id);
+        await supabase.from('user_profiles').update({ is_active: true }).in('id', ids);
+        fetchUsers();
+      },
+    },
+    {
+      label: 'Archive',
+      icon: <Archive className="h-4 w-4" />,
+      onClick: async (items) => {
+        const ids = items.map((u) => u.id);
+        await supabase.from('user_profiles').update({ is_active: false }).in('id', ids);
+        fetchUsers();
+      },
+    },
+    {
+      label: 'Delete',
+      icon: <Trash2 className="h-4 w-4" />,
+      variant: 'destructive',
+      confirmMessage: 'Are you sure you want to delete the selected users? This will archive them.',
+      onClick: async (items) => {
+        const ids = items.map((u) => u.id);
+        await supabase.from('user_profiles').update({ is_active: false }).in('id', ids);
+        fetchUsers();
+      },
+    },
+  ];
+
   if (!isGlobalAdmin) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
@@ -474,128 +622,15 @@ export default function UsersPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg border border-slate-200">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>User</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Last Login</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead className="w-[70px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
-                  <div className="text-slate-500">Loading...</div>
-                </TableCell>
-              </TableRow>
-            ) : filteredUsers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
-                  <Users className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                  <div className="text-slate-500">No users found</div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredUsers.map(user => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium text-slate-900">{user.full_name || 'No name'}</div>
-                      <div className="text-sm text-slate-500">{user.email}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={getRoleBadgeVariant(user.role)}>
-                      {roleDisplayNames[user.role]}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {user.is_active ? (
-                      <span className="inline-flex items-center gap-1 text-green-600">
-                        <CheckCircle className="h-4 w-4" />
-                        Active
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-slate-400">
-                        <XCircle className="h-4 w-4" />
-                        Archived
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm text-slate-500">
-                    {user.last_login_at
-                      ? new Date(user.last_login_at).toLocaleDateString()
-                      : 'Never'}
-                  </TableCell>
-                  <TableCell className="text-sm text-slate-500">
-                    {new Date(user.created_at).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => openEditDialog(user)}>
-                          <Pencil className="h-4 w-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        {user.role === 'external' && (
-                          <DropdownMenuItem onClick={() => openPermissionsDialog(user)}>
-                            <Building2 className="h-4 w-4 mr-2" />
-                            Cinema Access
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onClick={() => {
-                          setSelectedUser(user);
-                          setFormError(null);
-                          setFormSuccess(null);
-                          setResetPasswordDialogOpen(true);
-                        }}>
-                          <Key className="h-4 w-4 mr-2" />
-                          Reset Password
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handleToggleArchive(user)}>
-                          {user.is_active ? (
-                            <>
-                              <Archive className="h-4 w-4 mr-2" />
-                              Archive
-                            </>
-                          ) : (
-                            <>
-                              <ArchiveRestore className="h-4 w-4 mr-2" />
-                              Restore
-                            </>
-                          )}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={() => {
-                            setSelectedUser(user);
-                            setDeleteDialogOpen(true);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <DataTable
+          data={filteredUsers}
+          columns={columns}
+          getRowId={(user) => user.id}
+          bulkActions={bulkActions}
+          emptyMessage="No users found"
+          isLoading={loading}
+        />
       </div>
 
       {/* Create User Dialog */}

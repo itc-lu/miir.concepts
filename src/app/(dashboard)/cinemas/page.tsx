@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { DataTable, Column, BulkAction } from '@/components/ui/data-table';
-import { Plus, Building2, MapPin, Eye, Pencil, Check, X, Trash2, Archive, ArchiveRestore } from 'lucide-react';
+import { Plus, Building2, MapPin, Eye, Pencil, Check, X, Trash2, Archive, AlertTriangle, Filter } from 'lucide-react';
 
 interface Cinema {
   id: string;
@@ -23,11 +23,21 @@ interface Cinema {
   parser: { id: string; name: string; slug: string } | null;
 }
 
+// Normalize name for comparison (remove common suffixes, lowercase, trim)
+function normalizeName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\s+(cinema|kino|theater|theatre|cinemax|multiplex|imax)s?$/i, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
 export default function CinemasPage() {
   const router = useRouter();
   const supabase = createClient();
   const [cinemas, setCinemas] = useState<Cinema[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
 
   useEffect(() => {
     fetchCinemas();
@@ -64,6 +74,42 @@ export default function CinemasPage() {
     setLoading(false);
   }
 
+  // Find potential duplicates - cinemas with same normalized name
+  const duplicateGroups = useMemo(() => {
+    const nameMap = new Map<string, Cinema[]>();
+    cinemas.forEach((cinema) => {
+      const normalized = normalizeName(cinema.name);
+      if (!nameMap.has(normalized)) {
+        nameMap.set(normalized, []);
+      }
+      nameMap.get(normalized)!.push(cinema);
+    });
+
+    // Only keep groups with more than one cinema
+    const groups: Map<string, Cinema[]> = new Map();
+    nameMap.forEach((items, key) => {
+      if (items.length > 1) {
+        groups.set(key, items);
+      }
+    });
+    return groups;
+  }, [cinemas]);
+
+  // Set of duplicate cinema IDs for quick lookup
+  const duplicateIds = useMemo(() => {
+    const ids = new Set<string>();
+    duplicateGroups.forEach((items) => {
+      items.forEach((cinema) => ids.add(cinema.id));
+    });
+    return ids;
+  }, [duplicateGroups]);
+
+  // Filtered data based on duplicate toggle
+  const filteredCinemas = useMemo(() => {
+    if (!showDuplicatesOnly) return cinemas;
+    return cinemas.filter((cinema) => duplicateIds.has(cinema.id));
+  }, [cinemas, showDuplicatesOnly, duplicateIds]);
+
   // Get effective parser (from cinema or fallback to group)
   const getEffectiveParser = (cinema: Cinema) => {
     if (cinema.parser) return cinema.parser;
@@ -78,17 +124,27 @@ export default function CinemasPage() {
     {
       key: 'name',
       header: 'Cinema',
-      cell: (cinema) => (
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
-            <Building2 className="h-5 w-5 text-muted-foreground" />
+      cell: (cinema) => {
+        const isDuplicate = duplicateIds.has(cinema.id);
+        return (
+          <div className="flex items-center gap-3">
+            <div className={`h-10 w-10 rounded flex items-center justify-center ${isDuplicate ? 'bg-amber-100' : 'bg-muted'}`}>
+              {isDuplicate ? (
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+              ) : (
+                <Building2 className="h-5 w-5 text-muted-foreground" />
+              )}
+            </div>
+            <div>
+              <p className="font-medium">{cinema.name}</p>
+              <p className="text-xs text-muted-foreground">{cinema.slug}</p>
+              {isDuplicate && (
+                <p className="text-xs text-amber-600">Potential duplicate</p>
+              )}
+            </div>
           </div>
-          <div>
-            <p className="font-medium">{cinema.name}</p>
-            <p className="text-xs text-muted-foreground">{cinema.slug}</p>
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: 'group',
@@ -205,6 +261,8 @@ export default function CinemasPage() {
     },
   ];
 
+  const duplicateCount = duplicateIds.size;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -212,24 +270,53 @@ export default function CinemasPage() {
           <h1 className="text-3xl font-bold tracking-tight">Cinemas</h1>
           <p className="text-muted-foreground">
             Manage cinema locations ({cinemas.length} total)
+            {duplicateCount > 0 && (
+              <span className="text-amber-600 ml-2">
+                • {duplicateCount} potential duplicates found
+              </span>
+            )}
           </p>
         </div>
-        <Link href="/cinemas/new">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Cinema
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          {duplicateCount > 0 && (
+            <Button
+              variant={showDuplicatesOnly ? 'default' : 'outline'}
+              onClick={() => setShowDuplicatesOnly(!showDuplicatesOnly)}
+            >
+              <Filter className="mr-2 h-4 w-4" />
+              {showDuplicatesOnly ? 'Show All' : 'Show Duplicates'}
+            </Button>
+          )}
+          <Link href="/cinemas/new">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Cinema
+            </Button>
+          </Link>
+        </div>
       </div>
+
+      {duplicateCount > 0 && showDuplicatesOnly && (
+        <Card className="bg-amber-50 border-amber-200">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-2 text-amber-800">
+              <AlertTriangle className="h-5 w-5" />
+              <p className="text-sm">
+                <strong>{duplicateCount} potential duplicate cinemas found.</strong> Review and select duplicates to delete them using bulk actions.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-6">
           <DataTable
-            data={cinemas}
+            data={filteredCinemas}
             columns={columns}
             getRowId={(cinema) => cinema.id}
             bulkActions={bulkActions}
-            emptyMessage="No cinemas found"
+            emptyMessage={showDuplicatesOnly ? "No duplicate cinemas found" : "No cinemas found"}
             isLoading={loading}
             onRowClick={(cinema) => router.push(`/cinemas/${cinema.id}`)}
           />

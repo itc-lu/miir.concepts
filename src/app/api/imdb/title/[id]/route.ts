@@ -5,14 +5,21 @@ const IMDB_API_BASE = 'https://api.imdbapi.dev';
 // Helper to safely fetch JSON with error handling
 async function safeFetch(url: string) {
   try {
+    console.log('[IMDB Title] Fetching:', url);
     const response = await fetch(url, {
-      headers: { 'Accept': 'application/json' },
+      headers: { Accept: 'application/json' },
       next: { revalidate: 3600 },
     });
-    if (!response.ok) return null;
-    return await response.json();
+    console.log('[IMDB Title] Response status for', url, ':', response.status);
+    if (!response.ok) {
+      console.error('[IMDB Title] Non-OK response:', response.status, await response.text());
+      return null;
+    }
+    const data = await response.json();
+    console.log('[IMDB Title] Data keys for', url, ':', Object.keys(data));
+    return data;
   } catch (error) {
-    console.error('Fetch error for', url, error);
+    console.error('[IMDB Title] Fetch error for', url, error);
     return null;
   }
 }
@@ -23,20 +30,31 @@ export async function GET(
 ) {
   const { id } = await params;
   const titleId = id.startsWith('tt') ? id : `tt${id}`;
+  console.log('[IMDB Title] Looking up:', titleId);
 
   try {
     // Fetch title data first (required)
     const titleData = await safeFetch(`${IMDB_API_BASE}/titles/${titleId}`);
 
     if (!titleData) {
-      console.error('IMDB title fetch failed for:', titleId);
+      console.error('[IMDB Title] Title data not found for:', titleId);
       return NextResponse.json({ error: 'Title not found' }, { status: 404 });
     }
+
+    console.log('[IMDB Title] Got title data:', {
+      id: titleData.id,
+      primaryTitle: titleData.primaryTitle,
+      type: titleData.type,
+      startYear: titleData.startYear,
+      runtimeSeconds: titleData.runtimeSeconds,
+    });
 
     // Fetch supplementary data in parallel (optional - don't fail if unavailable)
     const [creditsData, releaseDatesData, akasData, videosData, certificatesData, companyCreditsData] =
       await Promise.all([
-        safeFetch(`${IMDB_API_BASE}/titles/${titleId}/credits?pageSize=50&categories=actor,director,writer,composer`),
+        safeFetch(
+          `${IMDB_API_BASE}/titles/${titleId}/credits?pageSize=50&categories=actor,director,writer,composer`
+        ),
         safeFetch(`${IMDB_API_BASE}/titles/${titleId}/releaseDates`),
         safeFetch(`${IMDB_API_BASE}/titles/${titleId}/akas`),
         safeFetch(`${IMDB_API_BASE}/titles/${titleId}/videos?pageSize=5`),
@@ -44,20 +62,54 @@ export async function GET(
         safeFetch(`${IMDB_API_BASE}/titles/${titleId}/companyCredits`),
       ]);
 
-    // The title data is the main response object
-    const title = titleData;
+    // Title API returns data directly (not nested), plus may include directors/stars arrays
+    const title = {
+      id: titleData.id,
+      type: titleData.type,
+      primaryTitle: titleData.primaryTitle,
+      originalTitle: titleData.originalTitle || titleData.primaryTitle,
+      startYear: titleData.startYear,
+      endYear: titleData.endYear,
+      runtimeMinutes: titleData.runtimeSeconds ? Math.round(titleData.runtimeSeconds / 60) : null,
+      genres: titleData.genres || [],
+      plot: titleData.plot,
+      rating: titleData.rating,
+      metacritic: titleData.metacritic,
+      primaryImage: titleData.primaryImage,
+      originCountries: titleData.originCountries || [],
+      spokenLanguages: titleData.spokenLanguages || [],
+    };
+
+    // The API may return directors/stars directly in the title response
+    const directorsFromTitle = titleData.directors || [];
+    const starsFromTitle = titleData.stars || [];
+
+    // Parse credits by category (from credits endpoint, if available)
     const credits = creditsData?.credits || [];
+    const directors =
+      credits.length > 0
+        ? credits.filter((c: any) => c.category === 'director')
+        : directorsFromTitle.map((d: any) => ({
+            id: d.id,
+            displayName: d.displayName,
+            category: 'director',
+          }));
+    const writers = credits.filter((c: any) => c.category === 'writer');
+    const composers = credits.filter((c: any) => c.category === 'composer');
+    const cast =
+      credits.length > 0
+        ? credits.filter((c: any) => c.category === 'actor').slice(0, 15)
+        : starsFromTitle.map((name: string, i: number) => ({
+            id: `star-${i}`,
+            displayName: name,
+            category: 'actor',
+          }));
+
     const releaseDates = releaseDatesData?.releaseDates || [];
     const akas = akasData?.akas || [];
     const videos = videosData?.videos || [];
     const certificates = certificatesData?.certificates || [];
     const companyCredits = companyCreditsData?.companyCredits || [];
-
-    // Parse credits by category
-    const directors = credits.filter((c: any) => c.category === 'director');
-    const writers = credits.filter((c: any) => c.category === 'writer');
-    const composers = credits.filter((c: any) => c.category === 'composer');
-    const cast = credits.filter((c: any) => c.category === 'actor').slice(0, 15);
 
     // Get production companies
     const productionCompanies = companyCredits.filter(
@@ -65,29 +117,34 @@ export async function GET(
     );
 
     // Find trailer video
-    const trailer = videos.find((v: any) =>
-      v.contentType?.toLowerCase().includes('trailer')
-    );
+    const trailer = videos.find((v: any) => v.contentType?.toLowerCase().includes('trailer'));
 
     // Helper functions
     const getLocalizedTitle = (countryCode: string) => {
-      return akas.find((a: any) =>
-        a.country?.toLowerCase() === countryCode.toLowerCase() ||
-        a.language?.toLowerCase() === countryCode.toLowerCase()
+      return akas.find(
+        (a: any) =>
+          a.country?.toLowerCase() === countryCode.toLowerCase() ||
+          a.language?.toLowerCase() === countryCode.toLowerCase()
       )?.title;
     };
 
     const getReleaseDate = (countryCode: string) => {
-      return releaseDates.find((r: any) =>
-        r.country?.toLowerCase() === countryCode.toLowerCase()
+      return releaseDates.find(
+        (r: any) => r.country?.toLowerCase() === countryCode.toLowerCase()
       )?.date;
     };
 
     const getCertificate = (countryCode: string) => {
-      return certificates.find((c: any) =>
-        c.country?.toLowerCase() === countryCode.toLowerCase()
+      return certificates.find(
+        (c: any) => c.country?.toLowerCase() === countryCode.toLowerCase()
       );
     };
+
+    console.log('[IMDB Title] Response ready for:', titleId, {
+      hasCredits: credits.length > 0,
+      directorsCount: directors.length,
+      castCount: cast.length,
+    });
 
     return NextResponse.json({
       title,
@@ -100,7 +157,8 @@ export async function GET(
       localizedTitles: {
         de: getLocalizedTitle('de') || getLocalizedTitle('germany'),
         fr: getLocalizedTitle('fr') || getLocalizedTitle('france'),
-        lu: getLocalizedTitle('lu') || getLocalizedTitle('luxembourg') || getLocalizedTitle('de'),
+        lu:
+          getLocalizedTitle('lu') || getLocalizedTitle('luxembourg') || getLocalizedTitle('de'),
         be: getLocalizedTitle('be') || getLocalizedTitle('belgium'),
       },
       countryReleaseDates: {
@@ -117,7 +175,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('IMDB title error:', error);
+    console.error('[IMDB Title] Error:', error);
     return NextResponse.json({ error: 'Failed to fetch title' }, { status: 500 });
   }
 }

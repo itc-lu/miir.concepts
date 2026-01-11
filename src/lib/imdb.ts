@@ -117,20 +117,40 @@ export interface IMDBCompanyCredit {
 // API Functions
 export async function searchTitles(query: string, limit = 20): Promise<IMDBSearchResult[]> {
   try {
-    const response = await fetch(
-      `${IMDB_API_BASE}/search/titles?query=${encodeURIComponent(query)}&limit=${limit}`,
-      { next: { revalidate: 3600 } }
-    );
+    const url = `${IMDB_API_BASE}/search/titles?query=${encodeURIComponent(query)}&limit=${limit}`;
+    console.log('[IMDB lib] Searching:', url);
+
+    const response = await fetch(url, { next: { revalidate: 3600 } });
+
+    console.log('[IMDB lib] Search response status:', response.status);
 
     if (!response.ok) {
-      console.error('IMDB search failed:', response.status);
+      console.error('[IMDB lib] Search failed:', response.status);
       return [];
     }
 
     const data = await response.json();
-    return data.results || [];
+    console.log('[IMDB lib] Search response keys:', Object.keys(data));
+
+    // API returns { titles: [...] }, transform to our format
+    const titles = data.titles || [];
+    console.log('[IMDB lib] Found titles:', titles.length);
+
+    return titles.map((t: any) => ({
+      id: t.id,
+      title: t.primaryTitle || t.originalTitle,
+      type: t.type,
+      year: t.startYear,
+      poster: t.primaryImage
+        ? {
+            url: t.primaryImage.url,
+            width: t.primaryImage.width,
+            height: t.primaryImage.height,
+          }
+        : undefined,
+    }));
   } catch (error) {
-    console.error('IMDB search error:', error);
+    console.error('[IMDB lib] Search error:', error);
     return [];
   }
 }
@@ -139,20 +159,50 @@ export async function getTitle(titleId: string): Promise<IMDBTitle | null> {
   try {
     // Ensure proper format (tt1234567)
     const formattedId = titleId.startsWith('tt') ? titleId : `tt${titleId}`;
+    const url = `${IMDB_API_BASE}/titles/${formattedId}`;
+    console.log('[IMDB lib] Fetching title:', url);
 
-    const response = await fetch(
-      `${IMDB_API_BASE}/titles/${formattedId}`,
-      { next: { revalidate: 3600 } }
-    );
+    const response = await fetch(url, { next: { revalidate: 3600 } });
+
+    console.log('[IMDB lib] Title response status:', response.status);
 
     if (!response.ok) {
-      console.error('IMDB title fetch failed:', response.status);
+      console.error('[IMDB lib] Title fetch failed:', response.status);
       return null;
     }
 
-    return response.json();
+    const data = await response.json();
+    console.log('[IMDB lib] Title data keys:', Object.keys(data));
+
+    // Transform API response to our format
+    return {
+      id: data.id,
+      type: data.type,
+      primaryTitle: data.primaryTitle,
+      originalTitle: data.originalTitle || data.primaryTitle,
+      year: data.startYear,
+      endYear: data.endYear,
+      runtimeSeconds: data.runtimeSeconds,
+      plot: data.plot,
+      rating: data.rating
+        ? {
+            aggregate: data.rating.aggregateRating,
+            voteCount: data.rating.voteCount,
+          }
+        : undefined,
+      genres: data.genres,
+      poster: data.primaryImage
+        ? {
+            url: data.primaryImage.url,
+            width: data.primaryImage.width,
+            height: data.primaryImage.height,
+          }
+        : undefined,
+      countriesOfOrigin: data.originCountries,
+      spokenLanguages: data.spokenLanguages,
+    };
   } catch (error) {
-    console.error('IMDB title error:', error);
+    console.error('[IMDB lib] Title error:', error);
     return null;
   }
 }

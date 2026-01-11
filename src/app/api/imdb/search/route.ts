@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ results: [] });
   }
 
+  const startTime = Date.now();
   try {
     const url = `${IMDB_API_BASE}/search/titles?query=${encodeURIComponent(query)}&limit=${limit}`;
     console.log('[IMDB Search] Fetching:', url);
@@ -19,13 +20,17 @@ export async function GET(request: NextRequest) {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
+        'User-Agent': 'CAT-Cinema-Automation-Tool/1.0',
       },
+      signal: AbortSignal.timeout(8000),
     });
 
-    console.log('[IMDB Search] Response status:', response.status);
+    const elapsed = Date.now() - startTime;
+    console.log('[IMDB Search] Response status:', response.status, `time=${elapsed}ms`);
 
     if (!response.ok) {
-      console.error('[IMDB Search] Failed:', response.status);
+      const errorText = await response.text().catch(() => 'No body');
+      console.error('[IMDB Search] Failed:', response.status, errorText.slice(0, 200));
       return NextResponse.json({ results: [], error: `Search failed: ${response.status}` });
     }
 
@@ -46,7 +51,16 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ results });
   } catch (error: any) {
-    console.error('[IMDB Search] Error:', error?.message || String(error));
-    return NextResponse.json({ results: [], error: 'Search failed' });
+    const elapsed = Date.now() - startTime;
+    console.error('[IMDB Search] Error after', elapsed, 'ms:', {
+      name: error?.name,
+      message: error?.message,
+      cause: error?.cause?.message || error?.cause,
+    });
+    return NextResponse.json({
+      results: [],
+      error: error?.name === 'TimeoutError' ? 'Search timed out' : 'Search failed',
+      details: error?.message,
+    });
   }
 }

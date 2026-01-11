@@ -53,7 +53,7 @@ interface ScreeningData {
     movie_l0: {
       original_title: string;
       runtime_minutes: number | null;
-      release_year: number | null;
+      production_year: number | null;
       poster_url: string | null;
     };
     format: { name: string } | null;
@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
         movie_l2:movies_l2(
           id,
           edition_title,
-          movie_l0:movies_l0(original_title, runtime_minutes, release_year, poster_url),
+          movie_l0:movies_l0(original_title, runtime_minutes, production_year, poster_url),
           format:formats(name),
           audio_language:languages!movies_l2_audio_language_id_fkey(code, name),
           subtitle_language:languages!movies_l2_subtitle_language_id_fkey(code, name)
@@ -280,8 +280,8 @@ function generateXml(screenings: ScreeningData[], template: any): string {
       lines.push(`        <duration>${screening.movie_l2.movie_l0.runtime_minutes}</duration>`);
       lines.push(`        <duration_formatted>${formatDuration(screening.movie_l2.movie_l0.runtime_minutes)}</duration_formatted>`);
     }
-    if (screening.movie_l2.movie_l0?.release_year) {
-      lines.push(`        <year>${screening.movie_l2.movie_l0.release_year}</year>`);
+    if (screening.movie_l2.movie_l0?.production_year) {
+      lines.push(`        <year>${screening.movie_l2.movie_l0.production_year}</year>`);
     }
     const format = screening.format?.name || screening.movie_l2.format?.name;
     if (format) {
@@ -362,7 +362,7 @@ function generateJson(screenings: ScreeningData[]): string {
           title: screening.movie_l2.movie_l0?.original_title,
           edition: screening.movie_l2.edition_title,
           duration: screening.movie_l2.movie_l0?.runtime_minutes,
-          year: screening.movie_l2.movie_l0?.release_year,
+          year: screening.movie_l2.movie_l0?.production_year,
           format: screening.format?.name || screening.movie_l2.format?.name,
           audio_language: screening.movie_l2.audio_language?.code,
           subtitle_language: screening.movie_l2.subtitle_language?.code,
@@ -421,7 +421,7 @@ function generateCsv(screenings: ScreeningData[]): string {
           `"${(screening.movie_l2.movie_l0?.original_title || '').replace(/"/g, '""')}"`,
           `"${(screening.movie_l2.edition_title || '').replace(/"/g, '""')}"`,
           screening.movie_l2.movie_l0?.runtime_minutes || '',
-          screening.movie_l2.movie_l0?.release_year || '',
+          screening.movie_l2.movie_l0?.production_year || '',
           `"${(screening.format?.name || screening.movie_l2.format?.name || '').replace(/"/g, '""')}"`,
           screening.movie_l2.audio_language?.code || '',
           screening.movie_l2.subtitle_language?.code || '',

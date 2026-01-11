@@ -2,38 +2,30 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const IMDB_API_BASE = 'https://api.imdbapi.dev';
 
-// Helper to safely fetch JSON with error handling and timeout
-async function safeFetch(url: string, timeoutMs: number = 10000) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
+// Helper to safely fetch JSON with error handling
+async function safeFetch(url: string): Promise<any> {
   try {
     console.log('[IMDB Title] Fetching:', url);
-    const response = await fetch(url, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'CAT-Cinema-Automation/1.0',
-      },
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
 
-    console.log('[IMDB Title] Response status for', url, ':', response.status);
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    console.log('[IMDB Title] Response status:', response.status);
+
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[IMDB Title] Non-OK response:', response.status, errorText);
+      console.error('[IMDB Title] Non-OK response:', response.status);
       return null;
     }
+
     const data = await response.json();
-    console.log('[IMDB Title] Data keys for', url, ':', Object.keys(data));
+    console.log('[IMDB Title] Got data with keys:', Object.keys(data).join(', '));
     return data;
   } catch (error: any) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      console.error('[IMDB Title] Request timeout for', url);
-    } else {
-      console.error('[IMDB Title] Fetch error for', url, error.message || error);
-    }
+    console.error('[IMDB Title] Fetch error:', error?.message || String(error));
     return null;
   }
 }

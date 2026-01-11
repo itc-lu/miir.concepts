@@ -1,6 +1,14 @@
 -- Migration 007: Fix user_role enum comparison with text
 -- Fixes "operator does not exist: user_role = text" error
 
+-- Drop existing functions that may have different return types
+DROP FUNCTION IF EXISTS get_accessible_cinema_ids(UUID);
+DROP FUNCTION IF EXISTS get_user_role(UUID);
+DROP FUNCTION IF EXISTS has_cinema_access(UUID, UUID);
+DROP FUNCTION IF EXISTS is_internal_user_or_above(UUID);
+DROP FUNCTION IF EXISTS is_internal_admin_or_above(UUID);
+DROP FUNCTION IF EXISTS is_global_admin(UUID);
+
 -- Drop and recreate helper functions with proper enum casting
 
 -- Check if user is global admin

@@ -243,7 +243,7 @@ CREATE POLICY "lang_mapping_lines_admin" ON language_mapping_lines FOR ALL TO au
 CREATE POLICY "import_conflict_movies_select" ON import_conflict_movies FOR SELECT TO authenticated
     USING (
         is_internal_admin_or_above(auth.uid()) OR
-        cinema_id = ANY(get_accessible_cinema_ids(auth.uid()))
+        has_cinema_access(auth.uid(), cinema_id)
     );
 CREATE POLICY "import_conflict_movies_admin" ON import_conflict_movies FOR ALL TO authenticated
     USING (is_internal_admin_or_above(auth.uid()));
@@ -253,7 +253,7 @@ CREATE POLICY "import_conflict_editions_select" ON import_conflict_editions FOR 
         EXISTS (
             SELECT 1 FROM import_conflict_movies m
             WHERE m.id = conflict_movie_id
-            AND (is_internal_admin_or_above(auth.uid()) OR m.cinema_id = ANY(get_accessible_cinema_ids(auth.uid())))
+            AND (is_internal_admin_or_above(auth.uid()) OR has_cinema_access(auth.uid(), m.cinema_id))
         )
     );
 CREATE POLICY "import_conflict_editions_admin" ON import_conflict_editions FOR ALL TO authenticated
@@ -262,7 +262,7 @@ CREATE POLICY "import_conflict_editions_admin" ON import_conflict_editions FOR A
 CREATE POLICY "import_conflict_sessions_select" ON import_conflict_sessions FOR SELECT TO authenticated
     USING (
         is_internal_admin_or_above(auth.uid()) OR
-        cinema_id = ANY(get_accessible_cinema_ids(auth.uid()))
+        has_cinema_access(auth.uid(), cinema_id)
     );
 CREATE POLICY "import_conflict_sessions_admin" ON import_conflict_sessions FOR ALL TO authenticated
     USING (is_internal_admin_or_above(auth.uid()));

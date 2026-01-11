@@ -9,9 +9,17 @@
 ALTER TABLE import_jobs
 ADD COLUMN IF NOT EXISTS cinema_group_id UUID REFERENCES cinema_groups(id) ON DELETE SET NULL;
 
--- Add parser_id (reference to actual parser record)
-ALTER TABLE import_jobs
-ADD COLUMN IF NOT EXISTS parser_id UUID REFERENCES parsers(id) ON DELETE SET NULL;
+-- Add parser_id (reference to actual parser record - only if parsers table exists)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'parsers') THEN
+        ALTER TABLE import_jobs
+        ADD COLUMN IF NOT EXISTS parser_id UUID REFERENCES parsers(id) ON DELETE SET NULL;
+    ELSE
+        ALTER TABLE import_jobs
+        ADD COLUMN IF NOT EXISTS parser_id UUID;
+    END IF;
+END $$;
 
 -- Add file size for auditing
 ALTER TABLE import_jobs
@@ -104,7 +112,7 @@ CREATE POLICY "import_job_sheets_select" ON import_job_sheets FOR SELECT TO auth
             AND (
                 j.user_id = auth.uid() OR
                 is_internal_admin_or_above(auth.uid()) OR
-                j.cinema_id = ANY(get_accessible_cinema_ids(auth.uid()))
+                has_cinema_access(auth.uid(), j.cinema_id)
             )
         )
     );
@@ -126,61 +134,132 @@ CREATE POLICY "import_job_sheets_owner" ON import_job_sheets FOR ALL TO authenti
 -- HELPER FUNCTION: Get import history for a cinema or group
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION get_import_history(
-    p_cinema_id UUID DEFAULT NULL,
-    p_cinema_group_id UUID DEFAULT NULL,
-    p_limit INT DEFAULT 50,
-    p_offset INT DEFAULT 0
-)
-RETURNS TABLE (
-    id UUID,
-    user_id UUID,
-    user_email TEXT,
-    cinema_id UUID,
-    cinema_name TEXT,
-    cinema_group_id UUID,
-    cinema_group_name TEXT,
-    file_name VARCHAR,
-    parser_name TEXT,
-    status import_status,
-    total_records INT,
-    success_records INT,
-    error_records INT,
-    sheet_count INT,
-    created_at TIMESTAMPTZ,
-    completed_at TIMESTAMPTZ
-)
-AS $$
+-- Note: get_import_history function is created conditionally to handle missing parsers table
+DO $$
 BEGIN
-    RETURN QUERY
-    SELECT
-        ij.id,
-        ij.user_id,
-        up.email::TEXT AS user_email,
-        ij.cinema_id,
-        c.name::TEXT AS cinema_name,
-        ij.cinema_group_id,
-        cg.name::TEXT AS cinema_group_name,
-        ij.file_name,
-        p.name::TEXT AS parser_name,
-        ij.status,
-        ij.total_records,
-        ij.success_records,
-        ij.error_records,
-        ij.sheet_count,
-        ij.created_at,
-        ij.completed_at
-    FROM import_jobs ij
-    LEFT JOIN user_profiles up ON up.id = ij.user_id
-    LEFT JOIN cinemas c ON c.id = ij.cinema_id
-    LEFT JOIN cinema_groups cg ON cg.id = ij.cinema_group_id
-    LEFT JOIN parsers p ON p.id = ij.parser_id
-    WHERE
-        (p_cinema_id IS NULL OR ij.cinema_id = p_cinema_id) AND
-        (p_cinema_group_id IS NULL OR ij.cinema_group_id = p_cinema_group_id OR
-         (ij.cinema_id IN (SELECT id FROM cinemas WHERE cinema_group_id = p_cinema_group_id)))
-    ORDER BY ij.created_at DESC
-    LIMIT p_limit
-    OFFSET p_offset;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+    -- Drop existing function if it exists
+    DROP FUNCTION IF EXISTS get_import_history(UUID, UUID, INT, INT);
+
+    -- Create the function
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'parsers') THEN
+        EXECUTE '
+        CREATE FUNCTION get_import_history(
+            p_cinema_id UUID DEFAULT NULL,
+            p_cinema_group_id UUID DEFAULT NULL,
+            p_limit INT DEFAULT 50,
+            p_offset INT DEFAULT 0
+        )
+        RETURNS TABLE (
+            id UUID,
+            user_id UUID,
+            user_email TEXT,
+            cinema_id UUID,
+            cinema_name TEXT,
+            cinema_group_id UUID,
+            cinema_group_name TEXT,
+            file_name VARCHAR,
+            parser_name TEXT,
+            status import_status,
+            total_records INT,
+            success_records INT,
+            error_records INT,
+            sheet_count INT,
+            created_at TIMESTAMPTZ,
+            completed_at TIMESTAMPTZ
+        )
+        AS $func$
+        BEGIN
+            RETURN QUERY
+            SELECT
+                ij.id,
+                ij.user_id,
+                up.email::TEXT AS user_email,
+                ij.cinema_id,
+                c.name::TEXT AS cinema_name,
+                ij.cinema_group_id,
+                cg.name::TEXT AS cinema_group_name,
+                ij.file_name,
+                p.name::TEXT AS parser_name,
+                ij.status,
+                ij.total_records,
+                ij.success_records,
+                ij.error_records,
+                ij.sheet_count,
+                ij.created_at,
+                ij.completed_at
+            FROM import_jobs ij
+            LEFT JOIN user_profiles up ON up.id = ij.user_id
+            LEFT JOIN cinemas c ON c.id = ij.cinema_id
+            LEFT JOIN cinema_groups cg ON cg.id = ij.cinema_group_id
+            LEFT JOIN parsers p ON p.id = ij.parser_id
+            WHERE
+                (p_cinema_id IS NULL OR ij.cinema_id = p_cinema_id) AND
+                (p_cinema_group_id IS NULL OR ij.cinema_group_id = p_cinema_group_id OR
+                 (ij.cinema_id IN (SELECT cid.id FROM cinemas cid WHERE cid.cinema_group_id = p_cinema_group_id)))
+            ORDER BY ij.created_at DESC
+            LIMIT p_limit
+            OFFSET p_offset;
+        END;
+        $func$ LANGUAGE plpgsql SECURITY DEFINER';
+    ELSE
+        -- Create version without parsers join
+        EXECUTE '
+        CREATE FUNCTION get_import_history(
+            p_cinema_id UUID DEFAULT NULL,
+            p_cinema_group_id UUID DEFAULT NULL,
+            p_limit INT DEFAULT 50,
+            p_offset INT DEFAULT 0
+        )
+        RETURNS TABLE (
+            id UUID,
+            user_id UUID,
+            user_email TEXT,
+            cinema_id UUID,
+            cinema_name TEXT,
+            cinema_group_id UUID,
+            cinema_group_name TEXT,
+            file_name VARCHAR,
+            parser_name TEXT,
+            status import_status,
+            total_records INT,
+            success_records INT,
+            error_records INT,
+            sheet_count INT,
+            created_at TIMESTAMPTZ,
+            completed_at TIMESTAMPTZ
+        )
+        AS $func$
+        BEGIN
+            RETURN QUERY
+            SELECT
+                ij.id,
+                ij.user_id,
+                up.email::TEXT AS user_email,
+                ij.cinema_id,
+                c.name::TEXT AS cinema_name,
+                ij.cinema_group_id,
+                cg.name::TEXT AS cinema_group_name,
+                ij.file_name,
+                NULL::TEXT AS parser_name,
+                ij.status,
+                ij.total_records,
+                ij.success_records,
+                ij.error_records,
+                ij.sheet_count,
+                ij.created_at,
+                ij.completed_at
+            FROM import_jobs ij
+            LEFT JOIN user_profiles up ON up.id = ij.user_id
+            LEFT JOIN cinemas c ON c.id = ij.cinema_id
+            LEFT JOIN cinema_groups cg ON cg.id = ij.cinema_group_id
+            WHERE
+                (p_cinema_id IS NULL OR ij.cinema_id = p_cinema_id) AND
+                (p_cinema_group_id IS NULL OR ij.cinema_group_id = p_cinema_group_id OR
+                 (ij.cinema_id IN (SELECT cid.id FROM cinemas cid WHERE cid.cinema_group_id = p_cinema_group_id)))
+            ORDER BY ij.created_at DESC
+            LIMIT p_limit
+            OFFSET p_offset;
+        END;
+        $func$ LANGUAGE plpgsql SECURITY DEFINER';
+    END IF;
+END $$;

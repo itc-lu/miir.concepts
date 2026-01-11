@@ -117,36 +117,153 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
 
 -- ============================================================================
--- RECREATE DROPPED POLICIES
+-- RECREATE ALL DROPPED POLICIES (from CASCADE)
 -- ============================================================================
 
--- Recreate "External user cinema access" policy on sessions
--- External users can only access sessions for cinemas they have permission to
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_policies
-        WHERE tablename = 'sessions' AND policyname = 'External user cinema access'
-    ) THEN
-        CREATE POLICY "External user cinema access" ON sessions FOR SELECT TO authenticated
-            USING (
-                get_user_role(auth.uid()) IN ('global_admin'::user_role, 'internal_admin'::user_role, 'internal_user'::user_role) OR
-                has_cinema_access(auth.uid(), cinema_id)
-            );
-    END IF;
-END $$;
+-- Reference tables: internal_admin+ write
+DO $$ BEGIN
+    CREATE POLICY "Internal admin write" ON countries FOR ALL
+        USING (is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- Recreate "Editor write access" policy on movie_l2_subtitles
--- Editors and above can modify subtitles
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_policies
-        WHERE tablename = 'movie_l2_subtitles' AND policyname = 'Editor write access'
-    ) THEN
-        CREATE POLICY "Editor write access" ON movie_l2_subtitles FOR ALL TO authenticated
-            USING (
-                get_user_role(auth.uid()) IN ('global_admin'::user_role, 'internal_admin'::user_role, 'internal_user'::user_role)
-            );
-    END IF;
-END $$;
+DO $$ BEGIN
+    CREATE POLICY "Internal admin write" ON languages FOR ALL
+        USING (is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "Internal admin write" ON formats FOR ALL
+        USING (is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "Internal admin write" ON technologies FOR ALL
+        USING (is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "Internal admin write" ON genres FOR ALL
+        USING (is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "Internal admin write" ON age_ratings FOR ALL
+        USING (is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "Internal admin write" ON cinema_tags FOR ALL
+        USING (is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "Internal admin write" ON movie_tags FOR ALL
+        USING (is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "Internal admin write" ON session_tags FOR ALL
+        USING (is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Cinema Groups & Cinemas: internal_admin+ write
+DO $$ BEGIN
+    CREATE POLICY "Internal admin write" ON cinema_groups FOR ALL
+        USING (is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "Internal admin write" ON cinemas FOR ALL
+        USING (is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- People: internal_admin+ write
+DO $$ BEGIN
+    CREATE POLICY "Internal admin write" ON people FOR ALL
+        USING (is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Movies L0/L1/L2: internal_user+ write
+DO $$ BEGIN
+    CREATE POLICY "Internal user write" ON movies_l0 FOR ALL
+        USING (is_internal_user_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "Internal user write" ON movies_l1 FOR ALL
+        USING (is_internal_user_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "Internal user write" ON movies_l2 FOR ALL
+        USING (is_internal_user_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Sessions: complex permissions
+DO $$ BEGIN
+    CREATE POLICY "Internal user full access" ON sessions FOR ALL
+        USING (is_internal_user_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "External user cinema access" ON sessions FOR ALL
+        USING (
+            get_user_role(auth.uid()) = 'external'::user_role
+            AND has_cinema_access(auth.uid(), cinema_id)
+        )
+        WITH CHECK (
+            get_user_role(auth.uid()) = 'external'::user_role
+            AND has_cinema_access(auth.uid(), cinema_id)
+        );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- User profiles
+DO $$ BEGIN
+    CREATE POLICY "Users read own profile" ON user_profiles FOR SELECT
+        USING (auth.uid() = id OR is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "Internal admin manage users" ON user_profiles FOR ALL
+        USING (is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Import jobs
+DO $$ BEGIN
+    CREATE POLICY "Internal user create imports" ON import_jobs FOR INSERT
+        WITH CHECK (is_internal_user_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "Users read own imports" ON import_jobs FOR SELECT
+        USING (user_id = auth.uid() OR is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Export: internal_admin+ for client/template management
+DO $$ BEGIN
+    CREATE POLICY "Internal admin exports" ON export_clients FOR ALL
+        USING (is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "Internal admin templates" ON export_templates FOR ALL
+        USING (is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Export jobs
+DO $$ BEGIN
+    CREATE POLICY "Internal user export jobs" ON export_jobs FOR ALL
+        USING (is_internal_user_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Audit logs
+DO $$ BEGIN
+    CREATE POLICY "Internal admin read audit" ON audit_logs FOR SELECT
+        USING (is_internal_admin_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Movie L2 subtitles
+DO $$ BEGIN
+    CREATE POLICY "Editor write access" ON movie_l2_subtitles FOR ALL
+        USING (is_internal_user_or_above(auth.uid()));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

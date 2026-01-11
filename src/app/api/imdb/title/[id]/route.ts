@@ -63,19 +63,24 @@ export async function GET(
       ]);
 
     // Title API returns data directly (not nested), plus may include directors/stars arrays
+    // Keep runtimeSeconds for frontend compatibility (it converts to minutes)
     const title = {
       id: titleData.id,
       type: titleData.type,
       primaryTitle: titleData.primaryTitle,
       originalTitle: titleData.originalTitle || titleData.primaryTitle,
       startYear: titleData.startYear,
+      year: titleData.startYear, // Also provide 'year' for compatibility
       endYear: titleData.endYear,
+      runtimeSeconds: titleData.runtimeSeconds, // Keep original for frontend conversion
       runtimeMinutes: titleData.runtimeSeconds ? Math.round(titleData.runtimeSeconds / 60) : null,
       genres: titleData.genres || [],
       plot: titleData.plot,
       rating: titleData.rating,
       metacritic: titleData.metacritic,
       primaryImage: titleData.primaryImage,
+      poster: titleData.primaryImage, // Also provide 'poster' for compatibility
+      countriesOfOrigin: titleData.originCountries || [],
       originCountries: titleData.originCountries || [],
       spokenLanguages: titleData.spokenLanguages || [],
     };

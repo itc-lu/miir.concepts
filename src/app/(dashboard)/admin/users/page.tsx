@@ -138,11 +138,19 @@ export default function UsersPage() {
     setFormLoading(true);
 
     try {
+      // Trim email to avoid validation issues
+      const email = formData.email.trim();
+      const password = formData.password;
+
+      if (!email) {
+        throw new Error('Email is required');
+      }
+
       // Create user via Supabase Auth Admin API (requires service role)
       // For now, we'll use the signUp method and then update the profile
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
+        email,
+        password,
         options: {
           data: {
             full_name: formData.full_name,

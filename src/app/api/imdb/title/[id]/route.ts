@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const IMDB_API_BASE = 'https://api.imdbapi.dev';
 
-// Helper to safely fetch JSON with detailed error handling
+// Helper to safely fetch JSON - simple version without AbortSignal.timeout
 async function safeFetch(url: string, label: string = 'request'): Promise<any> {
   const startTime = Date.now();
   try {
@@ -14,8 +14,7 @@ async function safeFetch(url: string, label: string = 'request'): Promise<any> {
         'Accept': 'application/json',
         'User-Agent': 'CAT-Cinema-Automation-Tool/1.0',
       },
-      // Netlify functions have a 10s timeout by default, so set a shorter timeout
-      signal: AbortSignal.timeout(8000),
+      // Don't use AbortSignal.timeout - not reliably supported in all serverless environments
     });
 
     const elapsed = Date.now() - startTime;
@@ -35,7 +34,6 @@ async function safeFetch(url: string, label: string = 'request'): Promise<any> {
     console.error(`[IMDB Title] ${label} error after ${elapsed}ms:`, {
       name: error?.name,
       message: error?.message,
-      cause: error?.cause?.message || error?.cause,
     });
     return null;
   }

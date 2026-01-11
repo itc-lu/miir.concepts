@@ -1,13 +1,17 @@
 -- Migration 007: Fix user_role enum comparison with text
 -- Fixes "operator does not exist: user_role = text" error
 
--- Drop existing functions that may have different return types
-DROP FUNCTION IF EXISTS get_accessible_cinema_ids(UUID);
-DROP FUNCTION IF EXISTS get_user_role(UUID);
-DROP FUNCTION IF EXISTS has_cinema_access(UUID, UUID);
-DROP FUNCTION IF EXISTS is_internal_user_or_above(UUID);
-DROP FUNCTION IF EXISTS is_internal_admin_or_above(UUID);
-DROP FUNCTION IF EXISTS is_global_admin(UUID);
+-- First, drop the dependent policies that use get_user_role
+DROP POLICY IF EXISTS "External user cinema access" ON sessions;
+DROP POLICY IF EXISTS "Editor write access" ON movie_l2_subtitles;
+
+-- Drop existing functions that may have different return types (CASCADE for safety)
+DROP FUNCTION IF EXISTS get_accessible_cinema_ids(UUID) CASCADE;
+DROP FUNCTION IF EXISTS get_user_role(UUID) CASCADE;
+DROP FUNCTION IF EXISTS has_cinema_access(UUID, UUID) CASCADE;
+DROP FUNCTION IF EXISTS is_internal_user_or_above(UUID) CASCADE;
+DROP FUNCTION IF EXISTS is_internal_admin_or_above(UUID) CASCADE;
+DROP FUNCTION IF EXISTS is_global_admin(UUID) CASCADE;
 
 -- Drop and recreate helper functions with proper enum casting
 
@@ -111,3 +115,38 @@ BEGIN
     RETURN role_val;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
+-- ============================================================================
+-- RECREATE DROPPED POLICIES
+-- ============================================================================
+
+-- Recreate "External user cinema access" policy on sessions
+-- External users can only access sessions for cinemas they have permission to
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE tablename = 'sessions' AND policyname = 'External user cinema access'
+    ) THEN
+        CREATE POLICY "External user cinema access" ON sessions FOR SELECT TO authenticated
+            USING (
+                get_user_role(auth.uid()) IN ('global_admin'::user_role, 'internal_admin'::user_role, 'internal_user'::user_role) OR
+                has_cinema_access(auth.uid(), cinema_id)
+            );
+    END IF;
+END $$;
+
+-- Recreate "Editor write access" policy on movie_l2_subtitles
+-- Editors and above can modify subtitles
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE tablename = 'movie_l2_subtitles' AND policyname = 'Editor write access'
+    ) THEN
+        CREATE POLICY "Editor write access" ON movie_l2_subtitles FOR ALL TO authenticated
+            USING (
+                get_user_role(auth.uid()) IN ('global_admin'::user_role, 'internal_admin'::user_role, 'internal_user'::user_role)
+            );
+    END IF;
+END $$;

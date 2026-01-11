@@ -29,67 +29,56 @@ export function Header({ user, onMenuClick }: HeaderProps) {
   async function handleSignOut() {
     await supabase.auth.signOut();
     router.push('/login');
-    router.refresh();
   }
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b bg-background px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
-      {/* Mobile menu button */}
-      <button
-        type="button"
-        className="-m-2.5 p-2.5 text-muted-foreground lg:hidden"
-        onClick={onMenuClick}
-      >
-        <span className="sr-only">Open sidebar</span>
-        <Menu className="h-6 w-6" />
-      </button>
+    <header className="sticky top-0 z-40 border-b border-border bg-background">
+      <div className="flex h-12 items-center gap-3 px-4">
+        {/* Mobile menu */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="lg:hidden h-8 w-8"
+          onClick={onMenuClick}
+        >
+          <Menu className="h-4 w-4" />
+        </Button>
 
-      {/* Separator */}
-      <div className="h-6 w-px bg-border lg:hidden" />
+        {/* Search */}
+        <div className="flex-1 max-w-lg">
+          <GlobalSearch />
+        </div>
 
-      <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
-        {/* Global Search */}
-        <GlobalSearch />
-
-        <div className="flex items-center gap-x-4 lg:gap-x-6">
-          {/* Notifications */}
+        {/* Right */}
+        <div className="flex items-center gap-1">
           <NotificationsDropdown />
 
-          {/* Separator */}
-          <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-border" />
-
-          {/* Profile dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-x-2 p-1.5 -m-1.5">
-                <span className="sr-only">Open user menu</span>
+              <Button variant="ghost" className="h-8 gap-2 pl-2 pr-3">
                 <Avatar
                   src={user?.avatar_url}
                   fallback={user?.full_name || user?.email || '?'}
                   size="sm"
                 />
-                <span className="hidden lg:flex lg:items-center">
-                  <span className="text-sm font-medium" aria-hidden="true">
-                    {user?.full_name || user?.email?.split('@')[0]}
-                  </span>
+                <span className="hidden sm:inline text-[13px]">
+                  {user?.full_name?.split(' ')[0] || user?.email?.split('@')[0]}
                 </span>
-              </button>
+              </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium">{user?.full_name}</p>
-                  <p className="text-xs text-muted-foreground">{user?.email}</p>
-                </div>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel className="font-normal py-2">
+                <p className="text-sm font-medium">{user?.full_name || 'User'}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{user?.email}</p>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push('/profile')}>
-                <User className="mr-2 h-4 w-4" />
+                <User className="mr-2 h-3.5 w-3.5" />
                 Profile
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
-                <LogOut className="mr-2 h-4 w-4" />
+                <LogOut className="mr-2 h-3.5 w-3.5" />
                 Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>

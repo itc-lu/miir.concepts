@@ -30,9 +30,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <UserProvider user={profile as UserProfile}>
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-background">
         <Sidebar userRole={profile?.role} />
-        <div className="lg:pl-64">
+        <div className="lg:pl-56">
           <Header user={profile as UserProfile} />
           <main className="py-6">
             <div className="px-4 sm:px-6 lg:px-8">{children}</div>

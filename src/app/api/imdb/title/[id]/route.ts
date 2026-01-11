@@ -2,14 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const IMDB_API_BASE = 'https://api.imdbapi.dev';
 
-// Helper to safely fetch JSON with error handling
-async function safeFetch(url: string) {
+// Helper to safely fetch JSON with error handling and timeout
+async function safeFetch(url: string, timeoutMs: number = 10000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
     console.log('[IMDB Title] Fetching:', url);
     const response = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      cache: 'force-cache',
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'CAT-Cinema-Automation/1.0',
+      },
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
+
     console.log('[IMDB Title] Response status for', url, ':', response.status);
     if (!response.ok) {
       const errorText = await response.text();
@@ -19,8 +27,13 @@ async function safeFetch(url: string) {
     const data = await response.json();
     console.log('[IMDB Title] Data keys for', url, ':', Object.keys(data));
     return data;
-  } catch (error) {
-    console.error('[IMDB Title] Fetch error for', url, error);
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      console.error('[IMDB Title] Request timeout for', url);
+    } else {
+      console.error('[IMDB Title] Fetch error for', url, error.message || error);
+    }
     return null;
   }
 }

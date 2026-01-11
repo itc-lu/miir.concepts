@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
 
           // Create screenings from sessions
           const editionSessions = conflict.sessions?.filter(
-            s => s.conflict_edition_id === edition.id || !s.conflict_edition_id
+            (s: any) => s.conflict_edition_id === edition.id || !s.conflict_edition_id
           ) || [];
 
           if (editionSessions.length > 0 && conflict.cinema_id) {

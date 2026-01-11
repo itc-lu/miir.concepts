@@ -789,3 +789,216 @@ export interface FlagDateConfigInput {
   movie_of_the_day_date?: string | null;
   movie_of_the_week_date?: string | null;
 }
+
+// ============================================================================
+// PARSER SYSTEM TYPES
+// ============================================================================
+
+export type ImportConflictState = 'to_verify' | 'verified' | 'processed' | 'skipped';
+
+export interface Parser {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  supported_formats: string[];
+  config_schema: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LanguageMappingConfig {
+  id: string;
+  name: string;
+  description: string | null;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+  // Relations
+  lines?: LanguageMappingLine[];
+}
+
+export interface LanguageMappingLine {
+  id: string;
+  config_id: string;
+  version_string: string;
+  spoken_language_id: string | null;
+  subtitle_language_ids: string[];
+  notes: string | null;
+  created_at: string;
+  // Relations
+  spoken_language?: Language;
+}
+
+export interface ImportConflictMovie {
+  id: string;
+  cinema_group_id: string | null;
+  cinema_id: string | null;
+  import_job_id: string | null;
+  parser_id: string | null;
+  import_title: string;
+  movie_name: string | null;
+  director: string | null;
+  year_of_production: number | null;
+  country_of_production: string | null;
+  plot_description: string | null;
+  matched_movie_l0_id: string | null;
+  state: ImportConflictState;
+  missing_info: string | null;
+  is_created: boolean;
+  created_at: string;
+  updated_at: string;
+  import_text: string | null;
+  // Relations
+  cinema_group?: CinemaGroup;
+  cinema?: Cinema;
+  parser?: Parser;
+  matched_movie?: MovieL0;
+  editions?: ImportConflictEdition[];
+  sessions?: ImportConflictSession[];
+}
+
+export interface ImportConflictEdition {
+  id: string;
+  conflict_movie_id: string;
+  title: string | null;
+  full_title: string | null;
+  language_code: string | null;
+  language_id: string | null;
+  duration_minutes: number | null;
+  duration_text: string | null;
+  director: string | null;
+  year_of_production: number | null;
+  country_of_production: string | null;
+  countries_available: string[] | null;
+  subtitle_languages: string[] | null;
+  subtitle_language_ids: string[];
+  tags: string[] | null;
+  format_codes: string[] | null;
+  format_id: string | null;
+  technology_id: string | null;
+  age_rating: string | null;
+  age_rating_id: string | null;
+  plot_description: string | null;
+  version_string: string | null;
+  state: ImportConflictState;
+  missing_info: string | null;
+  matched_movie_l2_id: string | null;
+  created_at: string;
+  updated_at: string;
+  import_text: string | null;
+  // Relations
+  language?: Language;
+  format?: Format;
+  technology?: Technology;
+  age_rating_obj?: AgeRating;
+  matched_edition?: MovieL2;
+}
+
+export interface ImportConflictSession {
+  id: string;
+  conflict_movie_id: string;
+  conflict_edition_id: string | null;
+  cinema_id: string;
+  screening_datetime: string;
+  screening_date: string | null;
+  time_float: number | null;
+  title: string | null;
+  language_code: string | null;
+  duration_minutes: number | null;
+  format_code: string | null;
+  start_week_day: string | null;
+  state: ImportConflictState;
+  missing_info: string | null;
+  created_at: string;
+  updated_at: string;
+  import_text: string | null;
+  // Relations
+  cinema?: Cinema;
+  conflict_movie?: ImportConflictMovie;
+  conflict_edition?: ImportConflictEdition;
+}
+
+// ============================================================================
+// PARSER DATA TYPES (for parsed Excel data)
+// ============================================================================
+
+export interface ParsedShowTime {
+  date: Date;
+  time: string; // "14:30" format
+  timeFloat: number; // 14.5 format
+  datetime: Date;
+}
+
+export interface ParsedFilmData {
+  importTitle: string; // Full string from Excel
+  movieName: string;
+  movieEdition: string | null;
+  language: string | null;
+  languageCode: string | null;
+  subtitleLanguages: string[];
+  formatTechnology: {
+    formatStr: string | null;
+    formatObj: Format | null;
+    technologyObj: Technology | null;
+  };
+  duration: string | null; // "2:42" format
+  durationMinutes: number | null;
+  ageRating: string | null;
+  director: string | null;
+  year: number | null;
+  productionCountry: string | null;
+  availableCountries: string[];
+  versionString: string | null;
+  tags: string[];
+  description: string | null;
+  startWeekDate: Date | null;
+  screeningShows: ParsedShowTime[];
+}
+
+export interface ParsedSheetResult {
+  sheetName: string;
+  films: ParsedFilmData[];
+  cinema?: Cinema;
+  dateRange?: {
+    start: Date;
+    end: Date;
+  };
+  errors: string[];
+}
+
+export interface ParserResult {
+  success: boolean;
+  sheets: ParsedSheetResult[];
+  errors: string[];
+  warnings: string[];
+}
+
+// ============================================================================
+// IMPORT WORKFLOW TYPES
+// ============================================================================
+
+export interface ImportOptions {
+  createMoviesAutomatically: boolean;
+  cleanupOldData: boolean;
+  cleanupDate: string | null;
+  previewOnly: boolean;
+}
+
+export interface ImportSummary {
+  totalMovies: number;
+  newMovies: number;
+  updatedMovies: number;
+  totalEditions: number;
+  newEditions: number;
+  updatedEditions: number;
+  totalScreenings: number;
+  newScreenings: number;
+  updatedScreenings: number;
+  totalSessions: number;
+  newSessions: number;
+  conflicts: number;
+  errors: string[];
+  warnings: string[];
+}

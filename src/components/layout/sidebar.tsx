@@ -94,6 +94,7 @@ const navigation: NavItem[] = [
       { title: 'Countries', href: '/admin/countries', permission: 'countries:read' },
       { title: 'Flag Automation', href: '/admin/flag-automation', permission: 'sessions:update' },
       { title: 'Export Clients', href: '/admin/export-clients', permission: 'export_clients:read' },
+      { title: 'Parsers', href: '/admin/parsers', permission: 'reference:read' },
     ],
   },
 ];

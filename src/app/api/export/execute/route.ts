@@ -1,29 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-
-// Lazy initialization to avoid build-time errors
-let supabase: SupabaseClient | null = null;
-
-function getSupabase() {
-  if (!supabase) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    console.log('[Export API] Initializing Supabase:', {
-      hasUrl: !!supabaseUrl,
-      hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-      hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      usingKey: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'service_role' : 'anon',
-    });
-
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error(`Missing Supabase configuration: URL=${!!supabaseUrl}, Key=${!!supabaseKey}`);
-    }
-
-    supabase = createClient(supabaseUrl, supabaseKey);
-  }
-  return supabase;
-}
+import { createClient } from '@/lib/supabase/server';
 
 // Convert decimal time to HH:MM format
 function formatTimeFloat(timeFloat: number): string {
@@ -114,7 +90,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const db = getSupabase();
+    const db = await createClient();
 
     console.log('[Export API] Looking for template:', templateId);
 

@@ -178,15 +178,19 @@ export default function UsersPage() {
       });
 
       if (authError) {
-        // Provide more helpful error messages
-        if (authError.message.includes('already registered')) {
+        console.error('[User Create] Auth error:', authError.message, authError);
+        // Show the actual Supabase error - don't override unless we have a specific translation
+        if (authError.message.includes('already registered') || authError.message.includes('already been registered')) {
           throw new Error('A user with this email already exists');
-        } else if (authError.message.includes('invalid')) {
-          throw new Error('Invalid email format. Please check the email address.');
-        } else if (authError.message.includes('password')) {
-          throw new Error('Password does not meet requirements (minimum 6 characters)');
+        } else if (authError.message.includes('Password should be at least')) {
+          throw new Error('Password must be at least 6 characters');
+        } else if (authError.message.includes('Unable to validate email')) {
+          throw new Error('Unable to validate email address. Check your Supabase email settings.');
+        } else if (authError.message.includes('Signups not allowed')) {
+          throw new Error('User signups are disabled. Enable them in Supabase Auth settings.');
         }
-        throw authError;
+        // For any other error, show the actual message
+        throw new Error(authError.message);
       }
 
       // Wait a bit for the trigger to create the profile

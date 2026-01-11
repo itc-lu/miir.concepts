@@ -1,75 +1,92 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Plus, Film, CheckCircle, Clock, Eye, Pencil } from 'lucide-react';
+import { DataTable, Column, BulkAction } from '@/components/ui/data-table';
+import { Plus, Film, CheckCircle, Clock, Eye, Pencil, Trash2, Archive, Check } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
-interface SearchParams {
-  page?: string;
-  search?: string;
-  status?: string;
+interface Movie {
+  id: string;
+  original_title: string;
+  production_year: number | null;
+  poster_url: string | null;
+  status: string;
+  is_verified: boolean;
+  created_at: string;
+  genres: Array<{ genre: { name: string } | null }>;
+  l1_entries: Array<{ language_id: string; title: string }>;
 }
 
-async function getMovies(searchParams: SearchParams) {
-  const supabase = await createClient();
-  const page = parseInt(searchParams.page || '1');
-  const limit = 10;
-  const offset = (page - 1) * limit;
+export default function MoviesPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const supabase = createClient();
 
-  let query = supabase
-    .from('movies_l0')
-    .select(
-      `
-      id,
-      original_title,
-      production_year,
-      poster_url,
-      status,
-      is_verified,
-      created_at,
-      genres:movie_l0_genres(genre:genres(name)),
-      l1_entries:movies_l1(language_id, title)
-    `,
-      { count: 'exact' }
-    )
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+  const [movies, setMovies] = useState<Movie[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState(searchParams.get('search') || '');
+  const [status, setStatus] = useState(searchParams.get('status') || '');
 
-  if (searchParams.search) {
-    query = query.ilike('original_title', `%${searchParams.search}%`);
+  const limit = 25;
+  const totalPages = Math.ceil(total / limit);
+
+  useEffect(() => {
+    fetchMovies();
+  }, [page, search, status]);
+
+  async function fetchMovies() {
+    setLoading(true);
+    const offset = (page - 1) * limit;
+
+    let query = supabase
+      .from('movies_l0')
+      .select(
+        `
+        id,
+        original_title,
+        production_year,
+        poster_url,
+        status,
+        is_verified,
+        created_at,
+        genres:movie_l0_genres(genre:genres(name)),
+        l1_entries:movies_l1(language_id, title)
+      `,
+        { count: 'exact' }
+      )
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (search) {
+      query = query.ilike('original_title', `%${search}%`);
+    }
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data, count, error } = await query;
+
+    if (data) {
+      setMovies(data as any);
+      setTotal(count || 0);
+    }
+    setLoading(false);
   }
 
-  if (searchParams.status) {
-    query = query.eq('status', searchParams.status);
-  }
-
-  const { data, count, error } = await query;
-
-  return {
-    movies: data || [],
-    total: count || 0,
-    page,
-    totalPages: Math.ceil((count || 0) / limit),
+  const handleFilter = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPage(1);
+    fetchMovies();
   };
-}
-
-export default async function MoviesPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>;
-}) {
-  const params = await searchParams;
-  const { movies, total, page, totalPages } = await getMovies(params);
 
   const statusColors: Record<string, 'default' | 'secondary' | 'success' | 'warning'> = {
     draft: 'secondary',
@@ -78,14 +95,165 @@ export default async function MoviesPage({
     archived: 'default',
   };
 
+  const columns: Column<Movie>[] = [
+    {
+      key: 'poster',
+      header: '',
+      className: 'w-12',
+      cell: (movie) => (
+        <div className="h-12 w-8 rounded bg-muted flex items-center justify-center overflow-hidden">
+          {movie.poster_url ? (
+            <img
+              src={movie.poster_url}
+              alt={movie.original_title}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <Film className="h-4 w-4 text-muted-foreground" />
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'title',
+      header: 'Title',
+      cell: (movie) => (
+        <div>
+          <p className="font-medium">{movie.original_title}</p>
+          {movie.l1_entries?.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {movie.l1_entries.length} localization(s)
+            </p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'year',
+      header: 'Year',
+      cell: (movie) => movie.production_year || '-',
+    },
+    {
+      key: 'genres',
+      header: 'Genres',
+      cell: (movie) => (
+        <div className="flex flex-wrap gap-1">
+          {movie.genres?.slice(0, 2).map((g, i) => (
+            <Badge key={i} variant="outline" className="text-xs">
+              {g.genre?.name}
+            </Badge>
+          ))}
+          {movie.genres?.length > 2 && (
+            <Badge variant="outline" className="text-xs">
+              +{movie.genres.length - 2}
+            </Badge>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (movie) => (
+        <Badge variant={statusColors[movie.status] || 'default'}>
+          {movie.status?.replace('_', ' ')}
+        </Badge>
+      ),
+    },
+    {
+      key: 'verified',
+      header: 'Verified',
+      cell: (movie) =>
+        movie.is_verified ? (
+          <CheckCircle className="h-4 w-4 text-green-600" />
+        ) : (
+          <Clock className="h-4 w-4 text-yellow-600" />
+        ),
+    },
+    {
+      key: 'created',
+      header: 'Created',
+      cell: (movie) => (
+        <span className="text-sm text-muted-foreground">
+          {formatDate(movie.created_at)}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      className: 'w-24',
+      cell: (movie) => (
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <Link href={`/movies/${movie.id}`}>
+            <Button variant="ghost" size="icon">
+              <Eye className="h-4 w-4" />
+            </Button>
+          </Link>
+          <Link href={`/movies/${movie.id}/edit`}>
+            <Button variant="ghost" size="icon">
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
+      ),
+    },
+  ];
+
+  const bulkActions: BulkAction<Movie>[] = [
+    {
+      label: 'Verify',
+      icon: <CheckCircle className="h-4 w-4" />,
+      onClick: async (items) => {
+        const ids = items.map((m) => m.id);
+        await supabase
+          .from('movies_l0')
+          .update({ is_verified: true, status: 'verified' })
+          .in('id', ids);
+        fetchMovies();
+      },
+    },
+    {
+      label: 'Set Draft',
+      icon: <Clock className="h-4 w-4" />,
+      onClick: async (items) => {
+        const ids = items.map((m) => m.id);
+        await supabase
+          .from('movies_l0')
+          .update({ status: 'draft', is_verified: false })
+          .in('id', ids);
+        fetchMovies();
+      },
+    },
+    {
+      label: 'Archive',
+      icon: <Archive className="h-4 w-4" />,
+      onClick: async (items) => {
+        const ids = items.map((m) => m.id);
+        await supabase.from('movies_l0').update({ status: 'archived' }).in('id', ids);
+        fetchMovies();
+      },
+    },
+    {
+      label: 'Delete',
+      icon: <Trash2 className="h-4 w-4" />,
+      variant: 'destructive',
+      confirmMessage:
+        'Are you sure you want to delete the selected movies? This action cannot be undone.',
+      onClick: async (items) => {
+        const ids = items.map((m) => m.id);
+        await supabase.from('movies_l0').delete().in('id', ids);
+        fetchMovies();
+      },
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Movies</h1>
-          <p className="text-muted-foreground">
-            Manage movie database ({total} total)
-          </p>
+          <p className="text-muted-foreground">Manage movie database ({total} total)</p>
         </div>
         <Link href="/movies/new">
           <Button>
@@ -98,19 +266,19 @@ export default async function MoviesPage({
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <form className="flex flex-wrap gap-4">
+          <form onSubmit={handleFilter} className="flex flex-wrap gap-4">
             <div className="flex-1 min-w-[200px]">
               <input
                 type="text"
-                name="search"
                 placeholder="Search movies..."
-                defaultValue={params.search}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               />
             </div>
             <select
-              name="status"
-              defaultValue={params.status}
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
               className="h-10 rounded-md border border-input bg-background px-3 text-sm"
             >
               <option value="">All statuses</option>
@@ -128,102 +296,16 @@ export default async function MoviesPage({
 
       {/* Movies Table */}
       <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12"></TableHead>
-                <TableHead>Title</TableHead>
-                <TableHead>Year</TableHead>
-                <TableHead>Genres</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Verified</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="w-24">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {movies.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                    No movies found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                movies.map((movie: any) => (
-                  <TableRow key={movie.id}>
-                    <TableCell>
-                      <div className="h-12 w-8 rounded bg-muted flex items-center justify-center overflow-hidden">
-                        {movie.poster_url ? (
-                          <img
-                            src={movie.poster_url}
-                            alt={movie.original_title}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <Film className="h-4 w-4 text-muted-foreground" />
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{movie.original_title}</p>
-                        {movie.l1_entries?.length > 0 && (
-                          <p className="text-xs text-muted-foreground">
-                            {movie.l1_entries.length} localization(s)
-                          </p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>{movie.production_year || '-'}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {movie.genres?.slice(0, 2).map((g: any, i: number) => (
-                          <Badge key={i} variant="outline" className="text-xs">
-                            {g.genre?.name}
-                          </Badge>
-                        ))}
-                        {movie.genres?.length > 2 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{movie.genres.length - 2}
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={statusColors[movie.status] || 'default'}>
-                        {movie.status?.replace('_', ' ')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {movie.is_verified ? (
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <Clock className="h-4 w-4 text-yellow-600" />
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {formatDate(movie.created_at)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Link href={`/movies/${movie.id}`}>
-                          <Button variant="ghost" size="icon">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </Link>
-                        <Link href={`/movies/${movie.id}/edit`}>
-                          <Button variant="ghost" size="icon">
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </Link>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+        <CardContent className="p-6">
+          <DataTable
+            data={movies}
+            columns={columns}
+            getRowId={(movie) => movie.id}
+            bulkActions={bulkActions}
+            emptyMessage="No movies found"
+            isLoading={loading}
+            onRowClick={(movie) => router.push(`/movies/${movie.id}`)}
+          />
         </CardContent>
       </Card>
 
@@ -234,20 +316,22 @@ export default async function MoviesPage({
             Page {page} of {totalPages}
           </p>
           <div className="flex gap-2">
-            <Link
-              href={`/movies?page=${page - 1}${params.search ? `&search=${params.search}` : ''}${params.status ? `&status=${params.status}` : ''}`}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
             >
-              <Button variant="outline" size="sm" disabled={page <= 1}>
-                Previous
-              </Button>
-            </Link>
-            <Link
-              href={`/movies?page=${page + 1}${params.search ? `&search=${params.search}` : ''}${params.status ? `&status=${params.status}` : ''}`}
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage(page + 1)}
             >
-              <Button variant="outline" size="sm" disabled={page >= totalPages}>
-                Next
-              </Button>
-            </Link>
+              Next
+            </Button>
           </div>
         </div>
       )}

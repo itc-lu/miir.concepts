@@ -3,7 +3,7 @@
  * Central registry for all cinema schedule parsers
  */
 
-import type { Parser, Cinema, CinemaGroup, ParserResult } from '@/types/database.types';
+import type { Parser, Cinema, CinemaGroup, ParserResult, Format, Technology, Language } from '@/types/database.types';
 import { BaseParser, ParserConfig, ParserContext } from './base';
 
 // Import parser implementations
@@ -56,6 +56,14 @@ export function isParserRegistered(slug: string): boolean {
   return parserRegistry.has(slug);
 }
 
+export interface ParseFileOptions {
+  formats: Format[];
+  technologies: Technology[];
+  languages: Language[];
+  languageMapping?: any;
+  specificSheetIndex?: number; // If provided, only parse this sheet
+}
+
 /**
  * Parse a file using the appropriate parser for a cinema
  */
@@ -64,7 +72,7 @@ export async function parseFileForCinema(
   cinema: Cinema,
   cinemaGroup: CinemaGroup | null,
   parser: Parser,
-  context: Omit<ParserContext, 'cinema' | 'cinemaGroup' | 'weekStartDay' | 'timezone'>
+  options: ParseFileOptions
 ): Promise<ParserResult> {
   const parserInstance = getParser(parser);
 
@@ -91,14 +99,17 @@ export async function parseFileForCinema(
 
   // Create full parser context
   const fullContext: ParserContext = {
-    ...context,
+    formats: options.formats,
+    technologies: options.technologies,
+    languages: options.languages,
+    languageMapping: options.languageMapping,
     cinema,
     cinemaGroup: cinemaGroup || undefined,
     weekStartDay,
     timezone: cinema.timezone || 'Europe/Luxembourg',
   };
 
-  return parserInstance.parseFile(file, fullContext);
+  return parserInstance.parseFile(file, fullContext, options.specificSheetIndex);
 }
 
 // ============================================================================

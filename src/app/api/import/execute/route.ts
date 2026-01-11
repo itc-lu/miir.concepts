@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createServerClient } from '@/lib/supabase/server';
-import type { ParsedFilmData, ParsedSheetResult } from '@/types/database.types';
+
+interface ParsedSheet {
+  sheetIndex: number;
+  sheetName: string;
+  cinemaId: string;
+  cinemaName: string;
+  filmCount: number;
+  dateRange: { start: string; end: string } | null;
+  films: any[];
+  errors: string[];
+}
 
 interface ImportRequest {
-  cinema_id: string;
+  cinema_id?: string; // Single cinema mode
+  cinema_group_id?: string; // Multi-cinema mode
   parser_id: string;
-  sheets: ParsedSheetResult[];
+  sheets: ParsedSheet[];
+  file_name?: string;
+  file_size?: number;
   options: {
     createMoviesAutomatically: boolean;
     cleanupOldData: boolean;
@@ -26,35 +39,53 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body: ImportRequest = await request.json();
-    const { cinema_id, parser_id, sheets, options } = body;
+    const { cinema_id, cinema_group_id, parser_id, sheets, file_name, file_size, options } = body;
 
-    if (!cinema_id || !parser_id || !sheets) {
+    if (!parser_id || !sheets || sheets.length === 0) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Fetch cinema
-    const { data: cinema, error: cinemaError } = await supabase
-      .from('cinemas')
-      .select('*, cinema_group:cinema_groups(*)')
-      .eq('id', cinema_id)
-      .single();
-
-    if (cinemaError || !cinema) {
-      return NextResponse.json({ error: 'Cinema not found' }, { status: 404 });
+    if (!cinema_id && !cinema_group_id) {
+      return NextResponse.json({ error: 'Either cinema_id or cinema_group_id is required' }, { status: 400 });
     }
 
-    // Create import job record
+    // Calculate totals
+    const totalFilms = sheets.reduce((acc, s) => acc + (s.films?.length || 0), 0);
+    const totalShowings = sheets.reduce(
+      (acc, s) => acc + (s.films || []).reduce((a: number, f: any) => a + (f.screeningShows?.length || 0), 0),
+      0
+    );
+
+    // Create import job record with enhanced tracking
     const { data: importJob, error: jobError } = await supabase
       .from('import_jobs')
       .insert({
         user_id: user.id,
-        cinema_id,
-        parser_type: parser_id,
+        cinema_id: cinema_id || null,
+        cinema_group_id: cinema_group_id || null,
+        parser_id: parser_id,
+        parser_type: parser_id, // Legacy field
+        file_name: file_name || 'Unknown',
+        original_file_name: file_name || 'Unknown',
+        file_size_bytes: file_size || 0,
+        sheet_count: sheets.length,
         status: 'processing',
-        total_records: sheets.reduce((acc, s) => acc + s.films.length, 0),
+        total_records: totalFilms,
         processed_records: 0,
         success_records: 0,
         error_records: 0,
+        summary: {
+          totalSheets: sheets.length,
+          totalFilms,
+          totalShowings,
+          sheetDetails: sheets.map(s => ({
+            sheetName: s.sheetName,
+            cinemaId: s.cinemaId,
+            cinemaName: s.cinemaName,
+            filmCount: s.filmCount,
+          })),
+        },
+        started_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -66,17 +97,20 @@ export async function POST(request: NextRequest) {
 
     // If preview only, return what would be imported
     if (options.previewOnly) {
+      // Update job status to preview
+      await supabase
+        .from('import_jobs')
+        .update({ status: 'pending' })
+        .eq('id', importJob.id);
+
       return NextResponse.json({
         success: true,
         previewOnly: true,
         importJobId: importJob.id,
         summary: {
-          totalFilms: sheets.reduce((acc, s) => acc + s.films.length, 0),
-          totalShowings: sheets.reduce(
-            (acc, s) => acc + s.films.reduce((a, f) => a + (f.screeningShows?.length || 0), 0),
-            0
-          ),
-          wouldCreateConflicts: sheets.reduce((acc, s) => acc + s.films.length, 0),
+          totalFilms,
+          totalShowings,
+          wouldCreateConflicts: totalFilms,
         },
       });
     }
@@ -91,21 +125,41 @@ export async function POST(request: NextRequest) {
     };
 
     for (const sheet of sheets) {
-      for (const film of sheet.films) {
+      // Get cinema_group_id for this sheet's cinema
+      let sheetCinemaGroupId = cinema_group_id;
+
+      if (!sheetCinemaGroupId && sheet.cinemaId) {
+        const { data: sheetCinema } = await supabase
+          .from('cinemas')
+          .select('cinema_group_id')
+          .eq('id', sheet.cinemaId)
+          .single();
+
+        if (sheetCinema) {
+          sheetCinemaGroupId = sheetCinema.cinema_group_id;
+        }
+      }
+
+      for (const film of sheet.films || []) {
         try {
           // Try to match film to existing movie
+          const movieSlug = (film.movieName || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+
           const { data: existingMovies } = await supabase
             .from('movies_l0')
             .select('id, original_title')
-            .or(`original_title.ilike.%${film.movieName}%,slug.eq.${film.movieName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`)
+            .or(`original_title.ilike.%${film.movieName}%,slug.eq.${movieSlug}`)
             .limit(5);
 
           // Create import conflict record for manual review
           const { data: conflictMovie, error: conflictError } = await supabase
             .from('import_conflict_movies')
             .insert({
-              cinema_group_id: cinema.cinema_group_id,
-              cinema_id: cinema_id,
+              cinema_group_id: sheetCinemaGroupId || null,
+              cinema_id: sheet.cinemaId,
               import_job_id: importJob.id,
               parser_id: parser_id,
               import_title: film.importTitle,
@@ -139,7 +193,7 @@ export async function POST(request: NextRequest) {
               director: film.director,
               year_of_production: film.year,
               subtitle_languages: film.subtitleLanguages,
-              format_codes: film.formatTechnology.formatStr ? [film.formatTechnology.formatStr] : [],
+              format_codes: film.format ? [film.format] : [],
               age_rating: film.ageRating,
               version_string: film.versionString,
               state: 'to_verify',
@@ -152,17 +206,17 @@ export async function POST(request: NextRequest) {
 
           // Create session conflicts for each showing
           if (film.screeningShows && film.screeningShows.length > 0) {
-            const sessionInserts = film.screeningShows.map(show => ({
+            const sessionInserts = film.screeningShows.map((show: any) => ({
               conflict_movie_id: conflictMovie.id,
-              cinema_id: cinema_id,
-              screening_datetime: show.datetime.toISOString(),
-              screening_date: show.date.toISOString().split('T')[0],
-              time_float: show.timeFloat,
+              cinema_id: sheet.cinemaId,
+              screening_datetime: show.datetime,
+              screening_date: show.date,
+              time_float: show.timeFloat || null,
               title: film.movieName,
               language_code: film.languageCode,
               duration_minutes: film.durationMinutes,
-              format_code: film.formatTechnology.formatStr,
-              start_week_day: film.startWeekDate?.toISOString().split('T')[0] || null,
+              format_code: film.format,
+              start_week_day: null,
               state: 'to_verify',
             }));
 
@@ -182,21 +236,41 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Determine final status
+    const finalStatus = results.errors.length > 0 && results.processedFilms === 0
+      ? 'failed'
+      : 'completed';
+
     // Update import job status
     await supabase
       .from('import_jobs')
       .update({
-        status: results.errors.length > 0 ? 'completed' : 'completed',
+        status: finalStatus,
         processed_records: results.processedFilms,
         success_records: results.createdConflicts,
         error_records: results.errors.length,
         completed_at: new Date().toISOString(),
         errors: results.errors.length > 0 ? { messages: results.errors } : null,
+        summary: {
+          totalSheets: sheets.length,
+          totalFilms,
+          totalShowings,
+          processedFilms: results.processedFilms,
+          createdConflicts: results.createdConflicts,
+          createdEditions: results.createdEditions,
+          createdSessions: results.createdSessions,
+          sheetDetails: sheets.map(s => ({
+            sheetName: s.sheetName,
+            cinemaId: s.cinemaId,
+            cinemaName: s.cinemaName,
+            filmCount: s.filmCount,
+          })),
+        },
       })
       .eq('id', importJob.id);
 
     return NextResponse.json({
-      success: true,
+      success: results.errors.length === 0 || results.processedFilms > 0,
       importJobId: importJob.id,
       summary: {
         processedFilms: results.processedFilms,

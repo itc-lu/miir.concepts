@@ -35,26 +35,34 @@ import {
   Film,
   Calendar,
   Clock,
-  Search,
+  History,
   ChevronRight,
   RefreshCw,
+  Building2,
+  Users,
 } from 'lucide-react';
+
+interface CinemaGroup {
+  id: string;
+  name: string;
+  parser_id: string | null;
+}
 
 interface Cinema {
   id: string;
   name: string;
   parser_id: string | null;
-  cinema_group?: {
-    id: string;
-    name: string;
-    parser_id: string | null;
-  };
+  cinema_group_id: string | null;
+  cinema_group?: CinemaGroup;
 }
 
-interface Parser {
-  id: string;
+interface DetectedSheet {
+  index: number;
   name: string;
-  slug: string;
+  rowCount: number;
+  dateRange: { start: string; end: string } | null;
+  sampleData: string[];
+  cinemaId?: string; // User-assigned cinema for this sheet
 }
 
 interface ParsedFilm {
@@ -79,15 +87,20 @@ interface ParsedFilm {
 
 interface ParseResult {
   success: boolean;
-  parser: Parser;
-  cinema: { id: string; name: string };
+  mode: 'single_cinema' | 'multi_cinema';
+  parser: { id: string; name: string; slug: string };
+  cinema?: { id: string; name: string };
+  cinemaGroup?: { id: string; name: string };
   summary: {
     totalSheets: number;
     totalFilms: number;
     totalShowings: number;
   };
   sheets: Array<{
+    sheetIndex: number;
     sheetName: string;
+    cinemaId: string;
+    cinemaName: string;
     filmCount: number;
     dateRange: { start: string; end: string } | null;
     films: ParsedFilm[];
@@ -115,16 +128,42 @@ interface Conflict {
   created_at: string;
 }
 
+interface ImportJob {
+  id: string;
+  user_id: string;
+  cinema_id: string | null;
+  cinema_group_id: string | null;
+  file_name: string;
+  status: string;
+  total_records: number;
+  success_records: number;
+  error_records: number;
+  sheet_count: number;
+  created_at: string;
+  completed_at: string | null;
+  user?: { email: string; first_name: string | null; last_name: string | null };
+  cinema?: { id: string; name: string };
+  cinema_group?: { id: string; name: string };
+  parser?: { id: string; name: string };
+}
+
+type SelectionMode = 'cinema' | 'cinema_group';
+
 export default function ImportPage() {
   const { hasPermission } = useUser();
   const supabase = createClient();
 
   const [activeTab, setActiveTab] = useState('upload');
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>('cinema');
+  const [cinemaGroups, setCinemaGroups] = useState<CinemaGroup[]>([]);
   const [cinemas, setCinemas] = useState<Cinema[]>([]);
   const [selectedCinemaId, setSelectedCinemaId] = useState<string>('');
+  const [selectedCinemaGroupId, setSelectedCinemaGroupId] = useState<string>('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [parsing, setParsing] = useState(false);
+  const [detectingSheets, setDetectingSheets] = useState(false);
+  const [detectedSheets, setDetectedSheets] = useState<DetectedSheet[]>([]);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -135,17 +174,36 @@ export default function ImportPage() {
   const [selectedConflict, setSelectedConflict] = useState<Conflict | null>(null);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
 
-  // Fetch cinemas on mount
+  // Import history state
+  const [importHistory, setImportHistory] = useState<ImportJob[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Fetch data on mount
   useEffect(() => {
     fetchCinemas();
+    fetchCinemaGroups();
   }, []);
 
   // Fetch conflicts when switching to conflicts tab
   useEffect(() => {
     if (activeTab === 'conflicts') {
       fetchConflicts();
+    } else if (activeTab === 'history') {
+      fetchImportHistory();
     }
   }, [activeTab]);
+
+  async function fetchCinemaGroups() {
+    const { data } = await supabase
+      .from('cinema_groups')
+      .select('id, name, parser_id')
+      .eq('is_active', true)
+      .order('name');
+
+    if (data) {
+      setCinemaGroups(data);
+    }
+  }
 
   async function fetchCinemas() {
     const { data } = await supabase
@@ -154,13 +212,13 @@ export default function ImportPage() {
         id,
         name,
         parser_id,
+        cinema_group_id,
         cinema_group:cinema_groups(id, name, parser_id)
       `)
       .eq('is_active', true)
       .order('name');
 
     if (data) {
-      // Transform cinema_group from array to single object
       const transformedCinemas = data.map((cinema: any) => ({
         ...cinema,
         cinema_group: Array.isArray(cinema.cinema_group)
@@ -186,19 +244,101 @@ export default function ImportPage() {
     }
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  async function fetchImportHistory() {
+    setHistoryLoading(true);
+    try {
+      const response = await fetch('/api/import/history?limit=50');
+      const data = await response.json();
+      if (data.jobs) {
+        setImportHistory(data.jobs);
+      }
+    } catch (err) {
+      console.error('Failed to fetch import history:', err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
       setParseResult(null);
+      setDetectedSheets([]);
       setError(null);
+
+      // If in cinema group mode, detect sheets
+      if (selectionMode === 'cinema_group' && selectedCinemaGroupId) {
+        await detectSheets(selectedFile);
+      }
     }
   };
 
+  const detectSheets = async (fileToDetect: File) => {
+    setDetectingSheets(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', fileToDetect);
+
+      const response = await fetch('/api/import/sheets', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to detect sheets');
+      }
+
+      // Initialize sheets with empty cinema selection
+      const sheetsWithCinema: DetectedSheet[] = data.sheets.map((sheet: any) => ({
+        ...sheet,
+        cinemaId: '',
+      }));
+
+      setDetectedSheets(sheetsWithCinema);
+    } catch (err: any) {
+      setError(err.message || 'Failed to detect sheets');
+    } finally {
+      setDetectingSheets(false);
+    }
+  };
+
+  const handleSheetCinemaChange = (sheetIndex: number, cinemaId: string) => {
+    setDetectedSheets(prev =>
+      prev.map(sheet =>
+        sheet.index === sheetIndex ? { ...sheet, cinemaId } : sheet
+      )
+    );
+  };
+
   const handleParse = async () => {
-    if (!file || !selectedCinemaId) {
-      setError('Please select a cinema and upload a file');
+    if (!file) {
+      setError('Please upload a file');
       return;
+    }
+
+    // Validation based on mode
+    if (selectionMode === 'cinema') {
+      if (!selectedCinemaId) {
+        setError('Please select a cinema');
+        return;
+      }
+    } else {
+      if (!selectedCinemaGroupId) {
+        setError('Please select a cinema group');
+        return;
+      }
+
+      // Check if all sheets have cinemas assigned
+      const unmappedSheets = detectedSheets.filter(s => !s.cinemaId);
+      if (unmappedSheets.length > 0) {
+        setError('Please assign a cinema to all sheets');
+        return;
+      }
     }
 
     setParsing(true);
@@ -208,7 +348,22 @@ export default function ImportPage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('cinema_id', selectedCinemaId);
+
+      if (selectionMode === 'cinema') {
+        formData.append('cinema_id', selectedCinemaId);
+      } else {
+        formData.append('cinema_group_id', selectedCinemaGroupId);
+        formData.append(
+          'sheet_mappings',
+          JSON.stringify(
+            detectedSheets.map(s => ({
+              sheetIndex: s.index,
+              sheetName: s.name,
+              cinemaId: s.cinemaId,
+            }))
+          )
+        );
+      }
 
       const response = await fetch('/api/import/parse', {
         method: 'POST',
@@ -241,9 +396,12 @@ export default function ImportPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          cinema_id: selectedCinemaId,
+          cinema_id: selectionMode === 'cinema' ? selectedCinemaId : undefined,
+          cinema_group_id: selectionMode === 'cinema_group' ? selectedCinemaGroupId : undefined,
           parser_id: parseResult.parser.id,
           sheets: parseResult.sheets,
+          file_name: file?.name,
+          file_size: file?.size,
           options: {
             createMoviesAutomatically: false,
             cleanupOldData: false,
@@ -320,8 +478,21 @@ export default function ImportPage() {
     }
   };
 
+  // Get cinemas filtered by selected cinema group
+  const filteredCinemas = selectedCinemaGroupId
+    ? cinemas.filter(c => c.cinema_group_id === selectedCinemaGroupId)
+    : cinemas;
+
   const selectedCinema = cinemas.find(c => c.id === selectedCinemaId);
-  const hasParser = selectedCinema?.parser_id || selectedCinema?.cinema_group?.parser_id;
+  const selectedCinemaGroup = cinemaGroups.find(g => g.id === selectedCinemaGroupId);
+  const hasParser = selectionMode === 'cinema'
+    ? selectedCinema?.parser_id || selectedCinema?.cinema_group?.parser_id
+    : selectedCinemaGroup?.parser_id;
+
+  const canUploadFile = selectionMode === 'cinema' ? !!selectedCinemaId && hasParser : !!selectedCinemaGroupId && hasParser;
+  const canParse = selectionMode === 'cinema'
+    ? !!file && !!selectedCinemaId && hasParser
+    : !!file && !!selectedCinemaGroupId && hasParser && detectedSheets.every(s => !!s.cinemaId);
 
   return (
     <div className="space-y-6">
@@ -364,6 +535,10 @@ export default function ImportPage() {
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="history">
+            <History className="h-4 w-4 mr-2" />
+            Import History
+          </TabsTrigger>
         </TabsList>
 
         {/* Upload Tab */}
@@ -372,37 +547,103 @@ export default function ImportPage() {
             <CardHeader>
               <CardTitle>Upload Schedule File</CardTitle>
               <CardDescription>
-                Select a cinema and upload an Excel file (.xlsx or .xls)
+                Select a cinema or cinema group and upload an Excel file (.xlsx or .xls)
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Cinema Selection */}
+            <CardContent className="space-y-6">
+              {/* Selection Mode Toggle */}
               <div className="space-y-2">
-                <Label htmlFor="cinema">Cinema</Label>
-                <select
-                  id="cinema"
-                  value={selectedCinemaId}
-                  onChange={(e) => {
-                    setSelectedCinemaId(e.target.value);
-                    setParseResult(null);
-                  }}
-                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-                >
-                  <option value="">Select a cinema...</option>
-                  {cinemas.map(cinema => (
-                    <option key={cinema.id} value={cinema.id}>
-                      {cinema.name}
-                      {cinema.cinema_group ? ` (${cinema.cinema_group.name})` : ''}
-                      {!cinema.parser_id && !cinema.cinema_group?.parser_id ? ' - No parser' : ''}
-                    </option>
-                  ))}
-                </select>
-                {selectedCinema && !hasParser && (
-                  <p className="text-sm text-amber-600">
-                    This cinema has no parser configured. Please configure a parser in the cinema settings.
-                  </p>
-                )}
+                <Label>Import Mode</Label>
+                <div className="flex gap-2">
+                  <Button
+                    variant={selectionMode === 'cinema' ? 'default' : 'outline'}
+                    onClick={() => {
+                      setSelectionMode('cinema');
+                      setSelectedCinemaGroupId('');
+                      setDetectedSheets([]);
+                      setParseResult(null);
+                    }}
+                    className="flex-1"
+                  >
+                    <Building2 className="h-4 w-4 mr-2" />
+                    Single Cinema
+                  </Button>
+                  <Button
+                    variant={selectionMode === 'cinema_group' ? 'default' : 'outline'}
+                    onClick={() => {
+                      setSelectionMode('cinema_group');
+                      setSelectedCinemaId('');
+                      setParseResult(null);
+                    }}
+                    className="flex-1"
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    Cinema Group (Multi-Sheet)
+                  </Button>
+                </div>
               </div>
+
+              {/* Single Cinema Mode */}
+              {selectionMode === 'cinema' && (
+                <div className="space-y-2">
+                  <Label htmlFor="cinema">Cinema</Label>
+                  <select
+                    id="cinema"
+                    value={selectedCinemaId}
+                    onChange={(e) => {
+                      setSelectedCinemaId(e.target.value);
+                      setParseResult(null);
+                    }}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                  >
+                    <option value="">Select a cinema...</option>
+                    {cinemas.map(cinema => (
+                      <option key={cinema.id} value={cinema.id}>
+                        {cinema.name}
+                        {cinema.cinema_group ? ` (${cinema.cinema_group.name})` : ''}
+                        {!cinema.parser_id && !cinema.cinema_group?.parser_id ? ' - No parser' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedCinema && !hasParser && (
+                    <p className="text-sm text-amber-600">
+                      This cinema has no parser configured.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Cinema Group Mode */}
+              {selectionMode === 'cinema_group' && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="cinema-group">Cinema Group</Label>
+                    <select
+                      id="cinema-group"
+                      value={selectedCinemaGroupId}
+                      onChange={(e) => {
+                        setSelectedCinemaGroupId(e.target.value);
+                        setDetectedSheets([]);
+                        setParseResult(null);
+                      }}
+                      className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                    >
+                      <option value="">Select a cinema group...</option>
+                      {cinemaGroups.map(group => (
+                        <option key={group.id} value={group.id}>
+                          {group.name}
+                          {!group.parser_id ? ' - No parser' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedCinemaGroup && !hasParser && (
+                      <p className="text-sm text-amber-600">
+                        This cinema group has no parser configured.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* File Upload */}
               <div className="space-y-2">
@@ -413,24 +654,8 @@ export default function ImportPage() {
                     type="file"
                     accept=".xlsx,.xls"
                     onChange={handleFileChange}
-                    disabled={!selectedCinemaId || !hasParser}
+                    disabled={!canUploadFile}
                   />
-                  <Button
-                    onClick={handleParse}
-                    disabled={!file || !selectedCinemaId || !hasParser || parsing}
-                  >
-                    {parsing ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Parsing...
-                      </>
-                    ) : (
-                      <>
-                        <FileSpreadsheet className="h-4 w-4 mr-2" />
-                        Parse File
-                      </>
-                    )}
-                  </Button>
                 </div>
                 {file && (
                   <p className="text-sm text-slate-500">
@@ -438,6 +663,82 @@ export default function ImportPage() {
                   </p>
                 )}
               </div>
+
+              {/* Sheet Detection (Cinema Group Mode) */}
+              {selectionMode === 'cinema_group' && detectingSheets && (
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Detecting sheets...
+                </div>
+              )}
+
+              {selectionMode === 'cinema_group' && detectedSheets.length > 0 && (
+                <div className="space-y-4">
+                  <Label>Sheet to Cinema Mapping</Label>
+                  <p className="text-sm text-slate-500">
+                    Assign each sheet to a cinema in the group
+                  </p>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Sheet</TableHead>
+                          <TableHead>Rows</TableHead>
+                          <TableHead>Date Range</TableHead>
+                          <TableHead>Cinema</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {detectedSheets.map(sheet => (
+                          <TableRow key={sheet.index}>
+                            <TableCell className="font-medium">{sheet.name}</TableCell>
+                            <TableCell>{sheet.rowCount}</TableCell>
+                            <TableCell>
+                              {sheet.dateRange
+                                ? `${sheet.dateRange.start} - ${sheet.dateRange.end}`
+                                : '-'}
+                            </TableCell>
+                            <TableCell>
+                              <select
+                                value={sheet.cinemaId || ''}
+                                onChange={(e) => handleSheetCinemaChange(sheet.index, e.target.value)}
+                                className="w-full h-8 px-2 rounded border border-input bg-background text-sm"
+                              >
+                                <option value="">Select cinema...</option>
+                                {filteredCinemas.map(cinema => (
+                                  <option key={cinema.id} value={cinema.id}>
+                                    {cinema.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {/* Parse Button */}
+              {file && (
+                <Button
+                  onClick={handleParse}
+                  disabled={!canParse || parsing}
+                >
+                  {parsing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Parsing...
+                    </>
+                  ) : (
+                    <>
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                      Parse File
+                    </>
+                  )}
+                </Button>
+              )}
             </CardContent>
           </Card>
 
@@ -454,7 +755,9 @@ export default function ImportPage() {
                   Parse Results
                 </CardTitle>
                 <CardDescription>
-                  Parser: {parseResult.parser.name} | Cinema: {parseResult.cinema.name}
+                  Parser: {parseResult.parser.name}
+                  {parseResult.cinema && ` | Cinema: ${parseResult.cinema.name}`}
+                  {parseResult.cinemaGroup && ` | Cinema Group: ${parseResult.cinemaGroup.name}`}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -494,11 +797,14 @@ export default function ImportPage() {
                   </Alert>
                 )}
 
-                {/* Films Table */}
+                {/* Films Table per Sheet */}
                 {parseResult.sheets.map((sheet, sheetIndex) => (
                   <div key={sheetIndex} className="space-y-2">
                     <h3 className="font-medium flex items-center gap-2">
                       {sheet.sheetName}
+                      {parseResult.mode === 'multi_cinema' && (
+                        <Badge variant="outline">{sheet.cinemaName}</Badge>
+                      )}
                       {sheet.dateRange && (
                         <span className="text-sm text-slate-500">
                           ({new Date(sheet.dateRange.start).toLocaleDateString()} -{' '}
@@ -708,6 +1014,113 @@ export default function ImportPage() {
                             >
                               <ChevronRight className="h-4 w-4" />
                             </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* History Tab */}
+        <TabsContent value="history" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Import History</CardTitle>
+                  <CardDescription>
+                    View past import jobs and their results
+                  </CardDescription>
+                </div>
+                <Button variant="outline" onClick={fetchImportHistory} disabled={historyLoading}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${historyLoading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {historyLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+                </div>
+              ) : importHistory.length === 0 ? (
+                <div className="text-center py-12">
+                  <History className="h-12 w-12 mx-auto text-slate-300 mb-4" />
+                  <p className="text-slate-500">No import history yet</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>File</TableHead>
+                      <TableHead>Cinema/Group</TableHead>
+                      <TableHead>User</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Records</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {importHistory.map(job => (
+                      <TableRow key={job.id}>
+                        <TableCell>
+                          <div className="text-sm">
+                            {new Date(job.created_at).toLocaleDateString()}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {new Date(job.created_at).toLocaleTimeString()}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium text-sm truncate max-w-[200px]">
+                            {job.file_name}
+                          </div>
+                          {job.sheet_count > 0 && (
+                            <div className="text-xs text-slate-500">
+                              {job.sheet_count} sheets
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {job.cinema_group?.name || job.cinema?.name || '-'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {job.user?.first_name
+                              ? `${job.user.first_name} ${job.user.last_name || ''}`
+                              : job.user?.email || '-'}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              job.status === 'completed'
+                                ? 'default'
+                                : job.status === 'failed'
+                                ? 'destructive'
+                                : job.status === 'processing'
+                                ? 'secondary'
+                                : 'outline'
+                            }
+                          >
+                            {job.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="text-sm">
+                            <span className="text-green-600">{job.success_records}</span>
+                            {job.error_records > 0 && (
+                              <>
+                                {' / '}
+                                <span className="text-red-600">{job.error_records}</span>
+                              </>
+                            )}
+                            {' / '}
+                            {job.total_records}
                           </div>
                         </TableCell>
                       </TableRow>

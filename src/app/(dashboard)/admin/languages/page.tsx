@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -18,8 +19,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  Plus, MoreHorizontal, Pencil, Trash2, Search, Languages, AlertCircle, CheckCircle,
+  Plus, MoreHorizontal, Pencil, Trash2, Search, Languages, AlertCircle, CheckCircle, Merge,
 } from 'lucide-react';
+import { MergeDialog, mergeConfigs } from '@/components/admin/merge-dialog';
 import type { Language } from '@/types/database.types';
 
 export default function LanguagesPage() {
@@ -33,10 +35,12 @@ export default function LanguagesPage() {
   const [items, setItems] = useState<Language[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Language | null>(null);
 
   const [formData, setFormData] = useState({
@@ -64,6 +68,23 @@ export default function LanguagesPage() {
     item.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (item.name_native?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   );
+
+  // Selection handlers
+  const allSelected = filteredItems.length > 0 && filteredItems.every(item => selectedIds.includes(item.id));
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredItems.map(item => item.id));
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -167,12 +188,20 @@ export default function LanguagesPage() {
           <h1 className="text-2xl font-bold text-slate-900">Languages</h1>
           <p className="text-sm text-slate-500 mt-1">Manage audio and subtitle languages</p>
         </div>
-        {canCreate && (
-          <Button onClick={() => { resetForm(); setFormError(null); setFormSuccess(null); setCreateDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Language
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {selectedIds.length >= 2 && canUpdate && (
+            <Button variant="outline" onClick={() => setMergeDialogOpen(true)}>
+              <Merge className="h-4 w-4 mr-2" />
+              Merge ({selectedIds.length})
+            </Button>
+          )}
+          {canCreate && (
+            <Button onClick={() => { resetForm(); setFormError(null); setFormSuccess(null); setCreateDialogOpen(true); }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Language
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-4">
@@ -180,12 +209,21 @@ export default function LanguagesPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input placeholder="Search languages..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
         </div>
+        {selectedIds.length > 0 && (
+          <span className="text-sm text-slate-500">{selectedIds.length} selected</span>
+        )}
       </div>
 
       <div className="bg-white rounded-lg border border-slate-200">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  checked={allSelected}
+                  onCheckedChange={toggleSelectAll}
+                />
+              </TableHead>
               <TableHead className="w-[50px]">Order</TableHead>
               <TableHead>Code</TableHead>
               <TableHead>Name</TableHead>
@@ -196,12 +234,18 @@ export default function LanguagesPage() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8"><div className="text-slate-500">Loading...</div></TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-8"><div className="text-slate-500">Loading...</div></TableCell></TableRow>
             ) : filteredItems.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8"><Languages className="h-8 w-8 text-slate-300 mx-auto mb-2" /><div className="text-slate-500">No languages found</div></TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-8"><Languages className="h-8 w-8 text-slate-300 mx-auto mb-2" /><div className="text-slate-500">No languages found</div></TableCell></TableRow>
             ) : (
               filteredItems.map(item => (
-                <TableRow key={item.id}>
+                <TableRow key={item.id} className={selectedIds.includes(item.id) ? 'bg-blue-50' : ''}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.includes(item.id)}
+                      onCheckedChange={() => toggleSelect(item.id)}
+                    />
+                  </TableCell>
                   <TableCell><span className="text-slate-400">{item.display_order}</span></TableCell>
                   <TableCell><Badge variant="outline">{item.code}</Badge></TableCell>
                   <TableCell className="font-medium text-slate-900">{item.name}</TableCell>
@@ -324,6 +368,22 @@ export default function LanguagesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Merge Dialog */}
+      <MergeDialog
+        open={mergeDialogOpen}
+        onOpenChange={(open) => {
+          setMergeDialogOpen(open);
+          if (!open) setSelectedIds([]);
+        }}
+        items={items}
+        selectedIds={selectedIds}
+        config={mergeConfigs.languages}
+        onMergeComplete={() => {
+          setSelectedIds([]);
+          fetchData();
+        }}
+      />
     </div>
   );
 }

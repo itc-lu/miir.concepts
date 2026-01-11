@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -19,8 +20,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  Plus, MoreHorizontal, Pencil, Trash2, Search, Layers, AlertCircle, CheckCircle, GripVertical,
+  Plus, MoreHorizontal, Pencil, Trash2, Search, Layers, AlertCircle, CheckCircle, GripVertical, Merge,
 } from 'lucide-react';
+import { MergeDialog, mergeConfigs } from '@/components/admin/merge-dialog';
 import type { Format } from '@/types/database.types';
 
 export default function FormatsPage() {
@@ -34,6 +36,8 @@ export default function FormatsPage() {
   const [items, setItems] = useState<Format[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -64,6 +68,22 @@ export default function FormatsPage() {
     item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.code.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const allSelected = filteredItems.length > 0 && filteredItems.every(item => selectedIds.includes(item.id));
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredItems.map(item => item.id));
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -167,12 +187,20 @@ export default function FormatsPage() {
           <h1 className="text-2xl font-bold text-slate-900">Formats</h1>
           <p className="text-sm text-slate-500 mt-1">Manage movie formats (2D, 3D, IMAX, etc.)</p>
         </div>
-        {canCreate && (
-          <Button onClick={() => { resetForm(); setFormError(null); setFormSuccess(null); setCreateDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Format
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {selectedIds.length >= 2 && canUpdate && (
+            <Button variant="outline" onClick={() => setMergeDialogOpen(true)}>
+              <Merge className="h-4 w-4 mr-2" />
+              Merge ({selectedIds.length})
+            </Button>
+          )}
+          {canCreate && (
+            <Button onClick={() => { resetForm(); setFormError(null); setFormSuccess(null); setCreateDialogOpen(true); }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Format
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-4">
@@ -186,6 +214,13 @@ export default function FormatsPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  checked={allSelected}
+                  onCheckedChange={toggleSelectAll}
+                  aria-label="Select all"
+                />
+              </TableHead>
               <TableHead className="w-[50px]">Order</TableHead>
               <TableHead>Code</TableHead>
               <TableHead>Name</TableHead>
@@ -196,12 +231,19 @@ export default function FormatsPage() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8"><div className="text-slate-500">Loading...</div></TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-8"><div className="text-slate-500">Loading...</div></TableCell></TableRow>
             ) : filteredItems.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8"><Layers className="h-8 w-8 text-slate-300 mx-auto mb-2" /><div className="text-slate-500">No formats found</div></TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-8"><Layers className="h-8 w-8 text-slate-300 mx-auto mb-2" /><div className="text-slate-500">No formats found</div></TableCell></TableRow>
             ) : (
               filteredItems.map(item => (
                 <TableRow key={item.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.includes(item.id)}
+                      onCheckedChange={() => toggleSelect(item.id)}
+                      aria-label={`Select ${item.name}`}
+                    />
+                  </TableCell>
                   <TableCell><span className="text-slate-400">{item.display_order}</span></TableCell>
                   <TableCell><Badge variant="outline">{item.code}</Badge></TableCell>
                   <TableCell className="font-medium text-slate-900">{item.name}</TableCell>
@@ -324,6 +366,19 @@ export default function FormatsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Merge Dialog */}
+      <MergeDialog
+        open={mergeDialogOpen}
+        onOpenChange={setMergeDialogOpen}
+        selectedIds={selectedIds}
+        items={items}
+        config={mergeConfigs.formats}
+        onMergeComplete={() => {
+          setSelectedIds([]);
+          fetchData();
+        }}
+      />
     </div>
   );
 }

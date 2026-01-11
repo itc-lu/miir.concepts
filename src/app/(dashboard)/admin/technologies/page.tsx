@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -18,8 +19,9 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { MergeDialog, mergeConfigs } from '@/components/admin/merge-dialog';
 import {
-  Plus, MoreHorizontal, Pencil, Trash2, Search, Monitor, AlertCircle, CheckCircle,
+  Plus, MoreHorizontal, Pencil, Trash2, Search, Monitor, AlertCircle, CheckCircle, Merge,
 } from 'lucide-react';
 import type { Technology } from '@/types/database.types';
 
@@ -39,6 +41,9 @@ export default function TechnologiesPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Technology | null>(null);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     code: '',
@@ -64,6 +69,24 @@ export default function TechnologiesPage() {
     item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.code.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  function handleSelectAll(checked: boolean) {
+    if (checked) {
+      setSelectedIds(new Set(filteredItems.map(item => item.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  }
+
+  function handleSelectOne(id: string, checked: boolean) {
+    const newSet = new Set(selectedIds);
+    if (checked) {
+      newSet.add(id);
+    } else {
+      newSet.delete(id);
+    }
+    setSelectedIds(newSet);
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -167,12 +190,20 @@ export default function TechnologiesPage() {
           <h1 className="text-2xl font-bold text-slate-900">Technologies</h1>
           <p className="text-sm text-slate-500 mt-1">Manage projection technologies (Dolby Atmos, IMAX, etc.)</p>
         </div>
-        {canCreate && (
-          <Button onClick={() => { resetForm(); setFormError(null); setFormSuccess(null); setCreateDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Technology
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {selectedIds.size >= 2 && canUpdate && (
+            <Button variant="outline" onClick={() => setMergeDialogOpen(true)}>
+              <Merge className="h-4 w-4 mr-2" />
+              Merge ({selectedIds.size})
+            </Button>
+          )}
+          {canCreate && (
+            <Button onClick={() => { resetForm(); setFormError(null); setFormSuccess(null); setCreateDialogOpen(true); }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Technology
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-4">
@@ -186,6 +217,12 @@ export default function TechnologiesPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  checked={filteredItems.length > 0 && selectedIds.size === filteredItems.length}
+                  onCheckedChange={handleSelectAll}
+                />
+              </TableHead>
               <TableHead className="w-[50px]">Order</TableHead>
               <TableHead>Code</TableHead>
               <TableHead>Name</TableHead>
@@ -196,12 +233,18 @@ export default function TechnologiesPage() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8"><div className="text-slate-500">Loading...</div></TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-8"><div className="text-slate-500">Loading...</div></TableCell></TableRow>
             ) : filteredItems.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8"><Monitor className="h-8 w-8 text-slate-300 mx-auto mb-2" /><div className="text-slate-500">No technologies found</div></TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-8"><Monitor className="h-8 w-8 text-slate-300 mx-auto mb-2" /><div className="text-slate-500">No technologies found</div></TableCell></TableRow>
             ) : (
               filteredItems.map(item => (
                 <TableRow key={item.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(item.id)}
+                      onCheckedChange={(checked) => handleSelectOne(item.id, checked as boolean)}
+                    />
+                  </TableCell>
                   <TableCell><span className="text-slate-400">{item.display_order}</span></TableCell>
                   <TableCell><Badge variant="outline">{item.code}</Badge></TableCell>
                   <TableCell className="font-medium text-slate-900">{item.name}</TableCell>
@@ -324,6 +367,19 @@ export default function TechnologiesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Merge Dialog */}
+      <MergeDialog
+        open={mergeDialogOpen}
+        onOpenChange={setMergeDialogOpen}
+        selectedIds={Array.from(selectedIds)}
+        items={items.filter(item => selectedIds.has(item.id))}
+        config={mergeConfigs.technologies}
+        onMergeComplete={() => {
+          setSelectedIds(new Set());
+          fetchData();
+        }}
+      />
     </div>
   );
 }

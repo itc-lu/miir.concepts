@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -18,8 +19,9 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { MergeDialog, mergeConfigs } from '@/components/admin/merge-dialog';
 import {
-  Plus, MoreHorizontal, Pencil, Trash2, Search, Tag, AlertCircle, CheckCircle, Film, Building2, Calendar,
+  Plus, MoreHorizontal, Pencil, Trash2, Search, Tag, AlertCircle, CheckCircle, Film, Building2, Calendar, Merge,
 } from 'lucide-react';
 
 type TagType = 'cinema' | 'movie' | 'session';
@@ -34,10 +36,10 @@ interface TagItem {
   updated_at: string;
 }
 
-const tagTypes: { value: TagType; label: string; icon: React.ComponentType<{ className?: string }>; table: string }[] = [
-  { value: 'cinema', label: 'Cinema Tags', icon: Building2, table: 'cinema_tags' },
-  { value: 'movie', label: 'Movie Tags', icon: Film, table: 'movie_tags' },
-  { value: 'session', label: 'Session Tags', icon: Calendar, table: 'session_tags' },
+const tagTypes: { value: TagType; label: string; icon: React.ComponentType<{ className?: string }>; table: string; configKey: string }[] = [
+  { value: 'cinema', label: 'Cinema Tags', icon: Building2, table: 'cinema_tags', configKey: 'cinema_tags' },
+  { value: 'movie', label: 'Movie Tags', icon: Film, table: 'movie_tags', configKey: 'movie_tags' },
+  { value: 'session', label: 'Session Tags', icon: Calendar, table: 'session_tags', configKey: 'session_tags' },
 ];
 
 const colorPresets = [
@@ -64,6 +66,16 @@ export default function TagsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<TagItem | null>(null);
 
+  // Selection state for each tag type
+  const [cinemaSelectedIds, setCinemaSelectedIds] = useState<string[]>([]);
+  const [movieSelectedIds, setMovieSelectedIds] = useState<string[]>([]);
+  const [sessionSelectedIds, setSessionSelectedIds] = useState<string[]>([]);
+
+  // Merge dialog state for each tag type
+  const [cinemaMergeDialogOpen, setCinemaMergeDialogOpen] = useState(false);
+  const [movieMergeDialogOpen, setMovieMergeDialogOpen] = useState(false);
+  const [sessionMergeDialogOpen, setSessionMergeDialogOpen] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
     color: '#3b82f6',
@@ -75,6 +87,32 @@ export default function TagsPage() {
   const [formLoading, setFormLoading] = useState(false);
 
   const currentTagType = tagTypes.find(t => t.value === activeType)!;
+
+  // Get selected IDs and setters for current tab
+  const getSelectionState = () => {
+    switch (activeType) {
+      case 'cinema':
+        return { selectedIds: cinemaSelectedIds, setSelectedIds: setCinemaSelectedIds };
+      case 'movie':
+        return { selectedIds: movieSelectedIds, setSelectedIds: setMovieSelectedIds };
+      case 'session':
+        return { selectedIds: sessionSelectedIds, setSelectedIds: setSessionSelectedIds };
+    }
+  };
+
+  const getMergeDialogState = () => {
+    switch (activeType) {
+      case 'cinema':
+        return { open: cinemaMergeDialogOpen, setOpen: setCinemaMergeDialogOpen };
+      case 'movie':
+        return { open: movieMergeDialogOpen, setOpen: setMovieMergeDialogOpen };
+      case 'session':
+        return { open: sessionMergeDialogOpen, setOpen: setSessionMergeDialogOpen };
+    }
+  };
+
+  const { selectedIds, setSelectedIds } = getSelectionState();
+  const { open: mergeDialogOpen, setOpen: setMergeDialogOpen } = getMergeDialogState();
 
   async function fetchData() {
     setLoading(true);
@@ -88,6 +126,28 @@ export default function TagsPage() {
   const filteredItems = items.filter(item =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Selection handlers
+  function handleSelectAll(checked: boolean) {
+    if (checked) {
+      setSelectedIds(filteredItems.map(item => item.id));
+    } else {
+      setSelectedIds([]);
+    }
+  }
+
+  function handleSelectOne(id: string, checked: boolean) {
+    if (checked) {
+      setSelectedIds([...selectedIds, id]);
+    } else {
+      setSelectedIds(selectedIds.filter(selectedId => selectedId !== id));
+    }
+  }
+
+  function handleMergeComplete() {
+    setSelectedIds([]);
+    fetchData();
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -181,6 +241,8 @@ export default function TagsPage() {
     setEditDialogOpen(true);
   }
 
+  const allSelected = filteredItems.length > 0 && filteredItems.every(item => selectedIds.includes(item.id));
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -188,12 +250,20 @@ export default function TagsPage() {
           <h1 className="text-2xl font-bold text-slate-900">Tags</h1>
           <p className="text-sm text-slate-500 mt-1">Manage tags for cinemas, movies, and sessions</p>
         </div>
-        {canCreate && (
-          <Button onClick={() => { resetForm(); setFormError(null); setFormSuccess(null); setCreateDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Tag
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {selectedIds.length >= 2 && canDelete && (
+            <Button variant="outline" onClick={() => setMergeDialogOpen(true)}>
+              <Merge className="h-4 w-4 mr-2" />
+              Merge ({selectedIds.length})
+            </Button>
+          )}
+          {canCreate && (
+            <Button onClick={() => { resetForm(); setFormError(null); setFormSuccess(null); setCreateDialogOpen(true); }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Tag
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Tag Type Tabs */}
@@ -222,12 +292,24 @@ export default function TagsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input placeholder="Search tags..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
         </div>
+        {selectedIds.length > 0 && (
+          <span className="text-sm text-slate-500">{selectedIds.length} selected</span>
+        )}
       </div>
 
       <div className="bg-white rounded-lg border border-slate-200">
         <Table>
           <TableHeader>
             <TableRow>
+              {canDelete && (
+                <TableHead className="w-[50px]">
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={handleSelectAll}
+                    aria-label="Select all"
+                  />
+                </TableHead>
+              )}
               <TableHead>Tag</TableHead>
               <TableHead>Description</TableHead>
               <TableHead>Status</TableHead>
@@ -236,12 +318,21 @@ export default function TagsPage() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={4} className="text-center py-8"><div className="text-slate-500">Loading...</div></TableCell></TableRow>
+              <TableRow><TableCell colSpan={canDelete ? 5 : 4} className="text-center py-8"><div className="text-slate-500">Loading...</div></TableCell></TableRow>
             ) : filteredItems.length === 0 ? (
-              <TableRow><TableCell colSpan={4} className="text-center py-8"><Tag className="h-8 w-8 text-slate-300 mx-auto mb-2" /><div className="text-slate-500">No tags found</div></TableCell></TableRow>
+              <TableRow><TableCell colSpan={canDelete ? 5 : 4} className="text-center py-8"><Tag className="h-8 w-8 text-slate-300 mx-auto mb-2" /><div className="text-slate-500">No tags found</div></TableCell></TableRow>
             ) : (
               filteredItems.map(item => (
-                <TableRow key={item.id}>
+                <TableRow key={item.id} data-state={selectedIds.includes(item.id) ? 'selected' : undefined}>
+                  {canDelete && (
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.includes(item.id)}
+                        onCheckedChange={(checked) => handleSelectOne(item.id, checked as boolean)}
+                        aria-label={`Select ${item.name}`}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <span
@@ -378,6 +469,32 @@ export default function TagsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Merge Dialogs for each tag type */}
+      <MergeDialog
+        open={cinemaMergeDialogOpen}
+        onOpenChange={setCinemaMergeDialogOpen}
+        items={items}
+        selectedIds={cinemaSelectedIds}
+        config={mergeConfigs.cinema_tags}
+        onMergeComplete={handleMergeComplete}
+      />
+      <MergeDialog
+        open={movieMergeDialogOpen}
+        onOpenChange={setMovieMergeDialogOpen}
+        items={items}
+        selectedIds={movieSelectedIds}
+        config={mergeConfigs.movie_tags}
+        onMergeComplete={handleMergeComplete}
+      />
+      <MergeDialog
+        open={sessionMergeDialogOpen}
+        onOpenChange={setSessionMergeDialogOpen}
+        items={items}
+        selectedIds={sessionSelectedIds}
+        config={mergeConfigs.session_tags}
+        onMergeComplete={handleMergeComplete}
+      />
     </div>
   );
 }

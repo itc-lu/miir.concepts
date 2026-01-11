@@ -12,8 +12,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Menu, Search, LogOut, User, Settings } from 'lucide-react';
+import { Menu, LogOut, User, Settings } from 'lucide-react';
 import { NotificationsDropdown } from './notifications';
+import { GlobalSearch } from '@/components/global-search';
 import type { UserProfile } from '@/types/database.types';
 
 interface HeaderProps {
@@ -47,20 +48,8 @@ export function Header({ user, onMenuClick }: HeaderProps) {
       <div className="h-6 w-px bg-border lg:hidden" />
 
       <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
-        {/* Search */}
-        <form className="relative flex flex-1" action="#" method="GET">
-          <label htmlFor="search-field" className="sr-only">
-            Search
-          </label>
-          <Search className="pointer-events-none absolute inset-y-0 left-0 h-full w-5 text-muted-foreground" />
-          <input
-            id="search-field"
-            className="block h-full w-full border-0 bg-transparent py-0 pl-8 pr-0 text-foreground placeholder:text-muted-foreground focus:ring-0 sm:text-sm"
-            placeholder="Search movies, cinemas..."
-            type="search"
-            name="search"
-          />
-        </form>
+        {/* Global Search */}
+        <GlobalSearch />
 
         <div className="flex items-center gap-x-4 lg:gap-x-6">
           {/* Notifications */}

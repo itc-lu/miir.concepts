@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -18,8 +19,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  Plus, MoreHorizontal, Pencil, Trash2, Search, Globe, AlertCircle, CheckCircle,
+  Plus, MoreHorizontal, Pencil, Trash2, Search, Globe, AlertCircle, CheckCircle, Merge,
 } from 'lucide-react';
+import { MergeDialog, mergeConfigs } from '@/components/admin/merge-dialog';
 import type { Country } from '@/types/database.types';
 
 export default function CountriesPage() {
@@ -38,6 +40,9 @@ export default function CountriesPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Country | null>(null);
+
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     code: '',
@@ -73,6 +78,22 @@ export default function CountriesPage() {
     item.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (item.name_native?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   );
+
+  function handleSelectAll(checked: boolean) {
+    if (checked) {
+      setSelectedIds(filteredItems.map(item => item.id));
+    } else {
+      setSelectedIds([]);
+    }
+  }
+
+  function handleSelectItem(id: string, checked: boolean) {
+    if (checked) {
+      setSelectedIds(prev => [...prev, id]);
+    } else {
+      setSelectedIds(prev => prev.filter(i => i !== id));
+    }
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -182,12 +203,20 @@ export default function CountriesPage() {
           <h1 className="text-2xl font-bold text-slate-900">Countries</h1>
           <p className="text-sm text-slate-500 mt-1">Manage countries for cinemas and content</p>
         </div>
-        {canCreate && (
-          <Button onClick={() => { resetForm(); setFormError(null); setFormSuccess(null); setCreateDialogOpen(true); }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Country
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {selectedIds.length >= 2 && (
+            <Button variant="outline" onClick={() => setMergeDialogOpen(true)}>
+              <Merge className="h-4 w-4 mr-2" />
+              Merge ({selectedIds.length})
+            </Button>
+          )}
+          {canCreate && (
+            <Button onClick={() => { resetForm(); setFormError(null); setFormSuccess(null); setCreateDialogOpen(true); }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Country
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-4">
@@ -204,6 +233,12 @@ export default function CountriesPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  checked={filteredItems.length > 0 && selectedIds.length === filteredItems.length}
+                  onCheckedChange={handleSelectAll}
+                />
+              </TableHead>
               <TableHead className="w-[60px]">Flag</TableHead>
               <TableHead>Code</TableHead>
               <TableHead>Name</TableHead>
@@ -214,12 +249,18 @@ export default function CountriesPage() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8"><div className="text-slate-500">Loading...</div></TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-8"><div className="text-slate-500">Loading...</div></TableCell></TableRow>
             ) : filteredItems.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8"><Globe className="h-8 w-8 text-slate-300 mx-auto mb-2" /><div className="text-slate-500">No countries found</div></TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-8"><Globe className="h-8 w-8 text-slate-300 mx-auto mb-2" /><div className="text-slate-500">No countries found</div></TableCell></TableRow>
             ) : (
               filteredItems.map(item => (
                 <TableRow key={item.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.includes(item.id)}
+                      onCheckedChange={(checked) => handleSelectItem(item.id, checked as boolean)}
+                    />
+                  </TableCell>
                   <TableCell>
                     <span className="text-2xl">{getFlagEmoji(item.code)}</span>
                   </TableCell>
@@ -364,6 +405,19 @@ export default function CountriesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Merge Dialog */}
+      <MergeDialog
+        open={mergeDialogOpen}
+        onOpenChange={setMergeDialogOpen}
+        selectedIds={selectedIds}
+        items={items}
+        config={mergeConfigs.countries}
+        onMergeComplete={() => {
+          setSelectedIds([]);
+          fetchData();
+        }}
+      />
     </div>
   );
 }
